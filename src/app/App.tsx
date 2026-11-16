@@ -1,4 +1,4 @@
-import {useCallback, useDeferredValue, useEffect, useMemo, useRef, useState} from 'react';
+import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {checkRoute} from '../shared/health';
 import {SAMPLES} from '../samples';
 import type {LngLat} from '../video/config';
@@ -59,7 +59,8 @@ export const App: React.FC = () => {
 	}, [landmarkSig]);
 
 	const config = useMemo(() => toVideoConfig(s), [s]);
-	const previewConfig = useDeferredValue(config);
+	// 预览直接用当前配置：useDeferredValue 会被 Player 每帧的更新一直打断，改文案和开关要等很久才生效
+	const previewConfig = config;
 
 	const issues = useMemo(() => {
 		if (!config) return [];

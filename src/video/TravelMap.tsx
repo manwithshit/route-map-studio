@@ -86,8 +86,11 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 export const TravelMap: React.FC<VideoConfig> = (cfg) => {
 	const frame = useCurrentFrame();
 	const theme = getTheme(cfg.theme);
-	const tl = getTimeline(cfg);
-	const state = useMemo(() => tl.getFrameState(frame), [tl, frame]);
+	const cached = getTimeline(cfg);
+	// 时间轴按路线几何缓存，缓存里的 cfg 是第一次建它时的配置。文案和组件开关不参与缓存键，
+	// 必须换成当前配置，否则改文案不生效，来回切开关还会命中旧缓存、文案“回退”。
+	const tl = useMemo(() => ({...cached, cfg: {...cached.cfg, texts: cfg.texts, show: cfg.show}}), [cached, cfg.texts, cfg.show]);
+	const state = useMemo(() => cached.getFrameState(frame), [cached, frame]);
 	const ctx = useMemo(() => ({theme, tl}), [theme, tl]);
 	// 只有影响底图样式的项（主题、画幅、路线）才重建地图；拖时长、镜头滑块不重建
 	const mapKey = `${cfg.theme}|${cfg.aspect}|${cfg.route.distanceMeters}|${cfg.route.coordinates.length}`;
