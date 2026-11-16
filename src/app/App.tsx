@@ -1,0 +1,193 @@
+import {useCallback, useDeferredValue, useEffect, useMemo, useRef, useState} from 'react';
+import {checkRoute} from '../shared/health';
+import {SAMPLES} from '../samples';
+import type {LngLat} from '../video/config';
+import {api, type Job} from './api';
+import {KeyGate} from './KeyGate';
+import {FieldsPanel, RoutePanel, StylePanel, TextsPanel} from './Panels';
+import {Preview} from './Preview';
+import {defaultTexts, loadState, pointsKey, sampleState, saveState, toVideoConfig, withDefaultTexts, type WorkbenchState} from './state';
+
+export const App: React.FC = () => {
+	const [s, setS] = useState<WorkbenchState>(loadState);
+	const [key, setKey] = useState<{hasKey: boolean; masked: string; outputDir: string} | null>(null);
+	const [gate, setGate] = useState(false);
+	const [routing, setRouting] = useState<'idle' | 'loading' | 'error'>('idle');
+	const [routeError, setRouteError] = useState('');
+	const [job, setJob] = useState<Job | null>(null);
+	const [renderError, setRenderError] = useState('');
+
+	const update = useCallback((fn: (st: WorkbenchState) => WorkbenchState) => setS((st) => fn(st)), []);
+
+	useEffect(() => {
+		api
+			.config()
+			.then((c) => {
+				setKey({hasKey: c.hasKey, masked: c.keyMasked, outputDir: c.outputDir});
+				if (!c.hasKey) setGate(true);
+			})
+			.catch(() => setKey({hasKey: false, masked: '', outputDir: ''}));
+	}, []);
+
+	useEffect(() => saveState(s), [s]);
+
+	// 路线点变化 → 自动重新算路（防抖）
+	const wantKey = pointsKey(s.points);
+	const allPicked = s.points.every((p) => p.place);
+	useEffect(() => {
+		if (!allPicked || wantKey === s.routeKey) return;
+		setRouting('loading');
+		const timer = setTimeout(async () => {
+			try {
+				const r = await api.route(s.points.map((p) => p.place!.lngLat as LngLat));
+				setS((st) => withDefaultTexts({...st, route: r, routeKey: wantKey}));
+				setRouting('idle');
+			} catch (e) {
+				setRouteError(e instanceof Error ? e.message : String(e));
+				setRouting('error');
+			}
+		}, 350);
+		return () => clearTimeout(timer);
+	}, [wantKey, allPicked, s.routeKey, s.points]);
+
+	// 地标勾选变化时同步默认摘要
+	const landmarkSig = s.points.map((p) => `${p.landmark}${p.name}`).join('|');
+	useEffect(() => {
+		setS((st) => withDefaultTexts(st));
+	}, [landmarkSig]);
+
+	const config = useMemo(() => toVideoConfig(s), [s]);
+	const previewConfig = useDeferredValue(config);
+
+	const issues = useMemo(() => {
+		if (!config) return [];
+		return checkRoute({
+			coordinates: config.route.coordinates as LngLat[],
+			distanceMeters: config.route.distanceMeters,
+			durationS: config.durationS,
+			landmarks: config.landmarks,
+		});
+	}, [config]);
+	const blocked = issues.some((i) => i.level === 'error') || !config || routing === 'loading' || !allPicked;
+
+	// 渲染进度轮询
+	const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+	const startRender = async () => {
+		if (!config) return;
+		setRenderError('');
+		try {
+			const j = await api.render(config);
+			setJob(j);
+			poll.current = setInterval(async () => {
+				try {
+					const cur = await api.job(j.id);
+					setJob(cur);
+					if (cur.status === 'done' || cur.status === 'error') {
+						if (poll.current) clearInterval(poll.current);
+						if (cur.status === 'error') setRenderError(cur.error ?? '渲染失败');
+					}
+				} catch {
+					/* 下一轮再试 */
+				}
+			}, 700);
+		} catch (e) {
+			setRenderError(e instanceof Error ? e.message : String(e));
+		}
+	};
+	useEffect(() => () => void (poll.current && clearInterval(poll.current)), []);
+
+	const rendering = job && (job.status === 'bundling' || job.status === 'rendering');
+
+	return (
+		<div className="app">
+			<header className="topbar">
+				<div className="brand">
+					<span className="logo" aria-hidden>
+						◢
+					</span>
+					<b>路线地图工作台</b>
+				</div>
+				<div className="row">
+					<label className="sample">
+						<span className="muted small">载入示例</span>
+						<select
+							id="sample"
+							value=""
+							onChange={(e) => {
+								if (e.target.value) setS(sampleState(e.target.value));
+							}}
+						>
+							<option value="">选择…</option>
+							{SAMPLES.map((x) => (
+								<option key={x.id} value={x.id}>
+									{x.label}
+								</option>
+							))}
+						</select>
+					</label>
+					<button type="button" className="btn ghost small" onClick={() => setGate(true)}>
+						高德 Key：{key?.hasKey ? key.masked : '未填写'}
+					</button>
+				</div>
+			</header>
+
+			<main className="body">
+				<div className="side">
+					<RoutePanel s={s} update={update} routing={routing} routeError={routeError} issues={issues} onKeyError={() => setGate(true)} />
+					<StylePanel s={s} update={update} />
+					<FieldsPanel s={s} update={update} />
+					<TextsPanel
+						s={s}
+						update={update}
+						onReset={() =>
+							setS((st) => ({...st, texts: {...st.texts, ...defaultTexts(st.points)}, edited: {...st.edited, title1: false, title2: false, via: false}}))
+						}
+					/>
+				</div>
+
+				<div className="main">
+					{previewConfig ? <Preview config={previewConfig} /> : <div className="empty">选好起点和终点后这里会出现预览</div>}
+					<div className="render">
+						<div className="render-info">
+							{rendering ? (
+								<>
+									<div className="progress">
+										<div style={{width: `${Math.round((job!.progress ?? 0) * 100)}%`}} />
+									</div>
+									<span className="muted small">
+										{job!.status === 'bundling' ? '首次渲染要先打包工程，大约 20 秒…' : `渲染中 ${Math.round(job!.progress * 100)}%`}
+									</span>
+								</>
+							) : job?.status === 'done' && job.output ? (
+								<span className="done">
+									已保存：{job.output.split('/').slice(-2).join('/')}
+									<button type="button" className="link" onClick={() => api.reveal(job.output!)}>
+										在 Finder 中显示
+									</button>
+								</span>
+							) : renderError ? (
+								<span className="alert error inline">{renderError}</span>
+							) : (
+								<span className="muted small">视频会保存到桌面的「路线视频」文件夹，60fps，渲染约 1–2 分钟。</span>
+							)}
+						</div>
+						<button type="button" className="btn primary big" disabled={blocked || Boolean(rendering)} onClick={startRender}>
+							{rendering ? '渲染中…' : '渲染视频'}
+						</button>
+					</div>
+				</div>
+			</main>
+
+			{gate && key ? (
+				<KeyGate
+					current={key.hasKey ? key.masked : undefined}
+					onCancel={key.hasKey ? () => setGate(false) : undefined}
+					onDone={(masked) => {
+						setKey({...key, hasKey: true, masked});
+						setGate(false);
+					}}
+				/>
+			) : null}
+		</div>
+	);
+};

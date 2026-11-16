@@ -1,0 +1,13 @@
+node_modules/
+out/
+build/
+dist/
+.DS_Store
+# 本地密钥：高德 Key 只存在本机
+config.local.json
+.env
+.env.*
+!.env.example
+# 由 postinstall 从 node_modules 复制
+public/maplibre-gl-worker.mjs
+__pycache__/
