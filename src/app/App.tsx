@@ -6,7 +6,7 @@ import {api, type Job} from './api';
 import {KeyGate} from './KeyGate';
 import {FieldsPanel, RoutePanel, StylePanel, TextsPanel} from './Panels';
 import {Preview} from './Preview';
-import {defaultTexts, loadState, pointsKey, sampleState, saveState, toVideoConfig, withDefaultTexts, type WorkbenchState} from './state';
+import {cityConflict, defaultTexts, loadState, pointsKey, sampleState, saveState, toVideoConfig, withDefaultTexts, type WorkbenchState} from './state';
 
 export const App: React.FC = () => {
 	const [s, setS] = useState<WorkbenchState>(loadState);
@@ -34,8 +34,9 @@ export const App: React.FC = () => {
 	// 路线点变化 → 自动重新算路（防抖）
 	const wantKey = pointsKey(s.points);
 	const allPicked = s.points.every((p) => p.place);
+	const conflict = cityConflict(s.points);
 	useEffect(() => {
-		if (!allPicked || wantKey === s.routeKey) return;
+		if (!allPicked || conflict || wantKey === s.routeKey) return;
 		setRouting('loading');
 		const timer = setTimeout(async () => {
 			try {
@@ -48,7 +49,7 @@ export const App: React.FC = () => {
 			}
 		}, 350);
 		return () => clearTimeout(timer);
-	}, [wantKey, allPicked, s.routeKey, s.points]);
+	}, [wantKey, allPicked, conflict, s.routeKey, s.points]);
 
 	// 地标勾选变化时同步默认摘要
 	const landmarkSig = s.points.map((p) => `${p.landmark}${p.name}`).join('|');
@@ -68,7 +69,18 @@ export const App: React.FC = () => {
 			landmarks: config.landmarks,
 		});
 	}, [config]);
-	const blocked = issues.some((i) => i.level === 'error') || !config || routing === 'loading' || !allPicked;
+	// 预览和渲染都只用“已算好的路线”。路线点没选全、跨城市、正在算路或路线已过期时，不能渲染
+	const stale = wantKey !== s.routeKey;
+	const blocked = issues.some((i) => i.level === 'error') || !config || routing === 'loading' || !allPicked || Boolean(conflict) || stale;
+	const blockReason = !allPicked
+		? '还有路线点没选，从搜索候选里选一个地点。'
+		: conflict
+			? '路线点不在同一个城市，先改好再渲染。'
+			: routing === 'loading' || stale
+				? '正在按新的路线点算路…'
+				: issues.some((i) => i.level === 'error')
+					? '路线有问题，看左侧路线区的提示。'
+					: '';
 
 	// 渲染进度轮询
 	const poll = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -133,7 +145,7 @@ export const App: React.FC = () => {
 
 			<main className="body">
 				<div className="side">
-					<RoutePanel s={s} update={update} routing={routing} routeError={routeError} issues={issues} onKeyError={() => setGate(true)} />
+					<RoutePanel s={s} update={update} routing={routing} routeError={routeError} conflict={conflict} issues={issues} onKeyError={() => setGate(true)} />
 					<StylePanel s={s} update={update} />
 					<FieldsPanel s={s} update={update} />
 					<TextsPanel
@@ -167,8 +179,10 @@ export const App: React.FC = () => {
 								</span>
 							) : renderError ? (
 								<span className="alert error inline">{renderError}</span>
+							) : blockReason ? (
+								<span className="muted small">{blockReason}</span>
 							) : (
-								<span className="muted small">视频会保存到桌面的「路线视频」文件夹，60fps，渲染约 1–2 分钟。</span>
+								<span className="muted small">预览只是播放，不会生成文件。点「渲染视频」才开始渲染，保存到桌面的「路线视频」文件夹，约 1–2 分钟。</span>
 							)}
 						</div>
 						<button type="button" className="btn primary big" disabled={blocked || Boolean(rendering)} onClick={startRender}>

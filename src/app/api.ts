@@ -1,6 +1,6 @@
 import type {LngLat, VideoConfig} from '../video/config';
 
-export type Place = {id: string; name: string; district: string; address: string; lngLat: LngLat};
+export type Place = {id: string; name: string; district: string; address: string; lngLat: LngLat; cityCode: string; cityName: string};
 export type RouteResult = {coordinates: LngLat[]; distanceMeters: number; source: string; roads: string[]};
 export type Job = {id: string; status: 'bundling' | 'rendering' | 'done' | 'error'; progress: number; output?: string; error?: string};
 

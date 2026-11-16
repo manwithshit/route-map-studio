@@ -5,7 +5,7 @@ import {ASPECTS, DURATION_RANGE, DYNAMICS_DEFAULT, type Aspect, type ComponentTo
 import {THEMES} from '../video/themes';
 import type {Place} from './api';
 import {PlaceSearch} from './PlaceSearch';
-import {emptyPoint, pointFromPlace, type RoutePoint, type WorkbenchState} from './state';
+import {emptyPoint, lockedCity, pointFromPlace, type RoutePoint, type WorkbenchState} from './state';
 
 type Update = (fn: (s: WorkbenchState) => WorkbenchState) => void;
 
@@ -27,9 +27,10 @@ export const RoutePanel: React.FC<{
 	update: Update;
 	routing: 'idle' | 'loading' | 'error';
 	routeError: string;
+	conflict: string | null;
 	issues: Issue[];
 	onKeyError: (m: string) => void;
-}> = ({s, update, routing, routeError, issues, onKeyError}) => {
+}> = ({s, update, routing, routeError, conflict, issues, onKeyError}) => {
 	const [dragging, setDragging] = useState<string | null>(null);
 	const vias = s.points.filter((p) => p.role === 'via');
 
@@ -70,13 +71,9 @@ export const RoutePanel: React.FC<{
 	const row = (p: RoutePoint, label: string, extra?: React.ReactNode) => (
 		<div
 			key={p.uid}
-			className={`point ${p.role} ${dragging === p.uid ? 'dragging' : ''}`}
-			draggable={p.role === 'via'}
-			onDragStart={(e) => {
-				setDragging(p.uid);
-				e.dataTransfer.effectAllowed = 'move';
-			}}
-			onDragEnd={() => setDragging(null)}
+			className={`point ${p.role} ${dragging === p.uid ? 'dragging' : ''} ${dragging && dragging !== p.uid && p.role === 'via' ? 'drop-ok' : ''}`}
+			// 整行只接收放下，拖动只能从左侧把手发起：整行可拖时，在输入框里按住鼠标选字会触发
+			// 原生拖拽，浏览器进入拖拽状态后光标卡住、点哪里都没反应。
 			onDragOver={(e) => {
 				if (p.role === 'via' && dragging && dragging !== p.uid) e.preventDefault();
 			}}
@@ -87,12 +84,26 @@ export const RoutePanel: React.FC<{
 			}}
 		>
 			<div className="point-rail">
+				{p.role === 'via' ? (
+					<span
+						className="grip"
+						title="按住拖动排序"
+						draggable
+						onDragStart={(e) => {
+							setDragging(p.uid);
+							e.dataTransfer.effectAllowed = 'move';
+							e.dataTransfer.setData('text/plain', p.uid);
+						}}
+						onDragEnd={() => setDragging(null)}
+					>
+						⋮⋮
+					</span>
+				) : null}
 				<span className={`dot ${p.role}`} />
 			</div>
 			<div className="point-body">
 				<div className="point-top">
 					<label className="point-label" htmlFor={`pt-${p.uid}`}>
-						{p.role === 'via' ? <span className="grip" title="拖动排序" aria-hidden>⋮⋮</span> : null}
 						{label}
 					</label>
 					<label className="check" title="到达时弹出地标卡">
@@ -111,7 +122,15 @@ export const RoutePanel: React.FC<{
 					city={s.city}
 					value={p.place}
 					placeholder={p.role === 'start' ? '搜索起点' : p.role === 'end' ? '搜索终点' : '搜索途经点'}
-					onSelect={(place: Place) => setPoint(p.uid, (x) => pointFromPlace(x, place))}
+					lock={lockedCity(s.points, p.uid)}
+					onSelect={(place: Place) =>
+						update((st) => ({
+							...st,
+							// 城市框为空时，用第一个选中地点所在城市填上，后续搜索都限定在这个城市
+							city: st.city.trim() || place.cityName.replace(/市$/, ''),
+							points: st.points.map((x) => (x.uid === p.uid ? pointFromPlace(x, place) : x)),
+						}))
+					}
 					onKeyError={onKeyError}
 				/>
 			</div>
@@ -155,9 +174,13 @@ export const RoutePanel: React.FC<{
 					⇅ 起终点互换
 				</button>
 			</div>
-			<div className={`route-status ${routing}`}>
-				{routing === 'loading' ? '正在算路…' : routing === 'error' ? routeError : `全程 ${km} 公里 · 沿真实道路`}
-			</div>
+			{conflict ? (
+				<div className="alert error">{conflict}</div>
+			) : (
+				<div className={`route-status ${routing}`}>
+					{routing === 'loading' ? '正在算路…' : routing === 'error' ? routeError : `全程 ${km} 公里 · 沿真实道路`}
+				</div>
+			)}
 			{issues.length ? (
 				<ul className="issues">
 					{issues.map((it) => (

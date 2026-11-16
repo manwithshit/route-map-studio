@@ -268,14 +268,15 @@ input[type='checkbox'] {
 .point {
 	display: grid;
 	grid-template-columns: 18px 1fr;
+	padding-left: 14px;
 	gap: 10px;
 	border-radius: 8px;
 }
 .point.dragging {
 	opacity: 0.4;
 }
-.point.via {
-	cursor: grab;
+.point.drop-ok {
+	background: color-mix(in srgb, var(--focus) 8%, transparent);
 }
 .point-rail {
 	position: relative;
@@ -334,8 +335,20 @@ input[type='checkbox'] {
 	margin-right: auto;
 }
 .grip {
+	position: absolute;
+	left: -14px;
+	top: 12px;
+	z-index: 1;
+	padding: 2px 3px;
 	color: var(--ink-3);
 	letter-spacing: -2px;
+	cursor: grab;
+	user-select: none;
+	border-radius: 4px;
+}
+.grip:hover {
+	color: var(--ink);
+	background: var(--line);
 }
 .point-tools {
 	display: inline-flex;
@@ -396,6 +409,13 @@ input[type='checkbox'] {
 }
 .search-list li.active {
 	background: var(--line);
+}
+.search-list li.off {
+	cursor: not-allowed;
+	opacity: 0.5;
+}
+.search-list li.off span {
+	color: var(--warn);
 }
 .search-list li.search-msg {
 	cursor: default;

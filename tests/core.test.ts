@@ -102,3 +102,26 @@ describe('布局', () => {
 		expect(L.side + L.panelW).toBeLessThanOrEqual(940);
 	});
 });
+
+describe('同城规则', async () => {
+	const {cityNameOf} = await import('../server/amap');
+	const {cityConflict, emptyPoint} = await import('../src/app/state');
+	const at = (role: 'start' | 'via' | 'end', name: string, cityCode: string, cityName: string) => ({
+		...emptyPoint(role),
+		name,
+		place: {id: name, name, district: '', address: '', lngLat: [0, 0] as LngLat, cityCode, cityName},
+	});
+	it('从高德 district 取出地级市 / 直辖市名', () => {
+		expect(cityNameOf('四川省成都市锦江区')).toBe('成都市');
+		expect(cityNameOf('重庆市渝中区')).toBe('重庆市');
+		expect(cityNameOf('四川省阿坝藏族羌族自治州九寨沟县')).toBe('阿坝藏族羌族自治州');
+	});
+	it('同一城市不报冲突，未选的点不参与判断', () => {
+		expect(cityConflict([at('start', '春熙路', '5101', '成都市'), emptyPoint('via'), at('end', '二仙桥', '5101', '成都市')])).toBeNull();
+	});
+	it('跨城市时指出是哪个点', () => {
+		const msg = cityConflict([at('start', '春熙路', '5101', '成都市'), at('via', '武侯祠', '5101', '成都市'), at('via', '洪崖洞', '5001', '重庆市'), at('end', '二仙桥', '5101', '成都市')]);
+		expect(msg).toContain('途经点 2「洪崖洞」在重庆市');
+		expect(msg).toContain('起点「春熙路」在成都市');
+	});
+});

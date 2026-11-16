@@ -2,7 +2,14 @@
 import {gcjToWgs} from '../src/shared/gcj';
 import type {LngLat} from '../src/video/config';
 
-export type Place = {id: string; name: string; district: string; address: string; lngLat: LngLat};
+// cityCode：行政区划码前 4 位（地级市 / 直辖市），用于判断所有路线点是否在同一城市
+export type Place = {id: string; name: string; district: string; address: string; lngLat: LngLat; cityCode: string; cityName: string};
+
+// “四川省成都市锦江区” → 成都市；“重庆市渝中区” → 重庆市；“四川省阿坝藏族羌族自治州九寨沟县” → 阿坝藏族羌族自治州
+export const cityNameOf = (district: string) => {
+	const m = district.replace(/^.*?(省|自治区|特别行政区)/, '').match(/^.*?(市|自治州|地区|盟)/);
+	return m ? m[0] : district;
+};
 
 // 常见错误码 → 用户看得懂的说法和改法
 const INFOCODE: Record<string, string> = {
@@ -35,12 +42,16 @@ export const inputTips = async (key: string, keywords: string, city: string): Pr
 		.filter((t) => typeof t.location === 'string' && t.location.includes(','))
 		.map((t) => {
 			const [lng, lat] = t.location.split(',').map(Number);
+			const district = typeof t.district === 'string' ? t.district : '';
+			const adcode = typeof t.adcode === 'string' ? t.adcode : '';
 			return {
 				id: String(t.id || `${t.name}-${t.location}`),
 				name: String(t.name),
-				district: typeof t.district === 'string' ? t.district : '',
+				district,
 				address: typeof t.address === 'string' ? t.address : '',
 				lngLat: gcjToWgs([lng, lat]),
+				cityCode: /^\d{6}$/.test(adcode) ? adcode.slice(0, 4) : '',
+				cityName: cityNameOf(district),
 			};
 		});
 };

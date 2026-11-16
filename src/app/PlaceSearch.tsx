@@ -7,9 +7,10 @@ export const PlaceSearch: React.FC<{
 	city: string;
 	value: Place | null;
 	placeholder: string;
+	lock: {code: string; name: string} | null; // 其他点已选定的城市：别的城市的候选不能选
 	onSelect: (p: Place) => void;
 	onKeyError: (msg: string) => void;
-}> = ({id, city, value, placeholder, onSelect, onKeyError}) => {
+}> = ({id, city, value, placeholder, lock, onSelect, onKeyError}) => {
 	const [q, setQ] = useState(value?.name ?? '');
 	const [open, setOpen] = useState(false);
 	const [items, setItems] = useState<Place[]>([]);
@@ -52,7 +53,9 @@ export const PlaceSearch: React.FC<{
 		};
 	}, [q, city, onKeyError]);
 
+	const blocked = (p: Place) => Boolean(lock && p.cityCode && p.cityCode !== lock.code);
 	const pick = (p: Place) => {
+		if (blocked(p)) return;
 		typed.current = false;
 		onSelect(p);
 		setQ(p.name);
@@ -101,22 +104,26 @@ export const PlaceSearch: React.FC<{
 			{status === 'loading' ? <span className="search-spin" aria-hidden /> : null}
 			{open && (items.length > 0 || msg) ? (
 				<ul className="search-list" id={`${id}-list`} role="listbox">
-					{items.map((p, i) => (
-						<li
-							key={p.id}
-							role="option"
-							aria-selected={i === active}
-							className={i === active ? 'active' : ''}
-							onMouseDown={(e) => {
-								e.preventDefault();
-								pick(p);
-							}}
-							onMouseEnter={() => setActive(i)}
-						>
-							<b>{p.name}</b>
-							<span>{[p.district, p.address].filter(Boolean).join(' · ')}</span>
-						</li>
-					))}
+					{items.map((p, i) => {
+						const off = blocked(p);
+						return (
+							<li
+								key={p.id}
+								role="option"
+								aria-selected={i === active}
+								aria-disabled={off}
+								className={`${i === active ? 'active' : ''} ${off ? 'off' : ''}`}
+								onMouseDown={(e) => {
+									e.preventDefault();
+									pick(p);
+								}}
+								onMouseEnter={() => setActive(i)}
+							>
+								<b>{p.name}</b>
+								<span>{off ? `不在${lock!.name}，路线点需要在同一个城市` : [p.district, p.address].filter(Boolean).join(' · ')}</span>
+							</li>
+						);
+					})}
 					{items.length === 0 && msg ? <li className="search-msg">{msg}</li> : null}
 				</ul>
 			) : null}

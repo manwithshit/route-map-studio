@@ -51,6 +51,30 @@ export const isLoop = (points: RoutePoint[]) => {
 	return Math.hypot((a[0] - b[0]) * 96000, (a[1] - b[1]) * 111000) < 300;
 };
 
+// 所有路线点必须在同一个城市。返回第一个冲突的说明；全部同城或城市未知时返回 null
+export const cityConflict = (points: RoutePoint[]): string | null => {
+	const label = (p: RoutePoint, i: number) => (p.role === 'start' ? '起点' : p.role === 'end' ? '终点' : `途经点 ${i}`);
+	let base: {p: RoutePoint; label: string} | null = null;
+	let via = 0;
+	for (const p of points) {
+		if (p.role === 'via') via++;
+		const code = p.place?.cityCode;
+		if (!code) continue;
+		const l = label(p, via);
+		if (!base) base = {p, label: l};
+		else if (base.p.place!.cityCode !== code) {
+			return `${base.label}「${base.p.name}」在${base.p.place!.cityName}，${l}「${p.name}」在${p.place!.cityName}。所有点需要在同一个城市，请把${l}换成${base.p.place!.cityName}的地点。`;
+		}
+	}
+	return null;
+};
+
+// 已选点所在城市（排除正在编辑的点），用于在搜索候选里标出其他城市
+export const lockedCity = (points: RoutePoint[], exceptUid: string) => {
+	const p = points.find((x) => x.uid !== exceptUid && x.place?.cityCode);
+	return p ? {code: p.place!.cityCode, name: p.place!.cityName} : null;
+};
+
 export const defaultTexts = (points: RoutePoint[]): Pick<Texts, 'title1' | 'title2' | 'via'> => {
 	const named = points.filter((p) => p.place);
 	const start = named[0]?.name ?? '';
@@ -91,7 +115,7 @@ export const sampleState = (id: string): WorkbenchState => {
 	const points: RoutePoint[] = cfg.landmarks.map((l, i) => ({
 		uid: uid(),
 		role: i === 0 ? 'start' : i === n - 1 ? 'end' : 'via',
-		place: {id: `sample-${i}`, name: l.name, district: sample.city, address: '', lngLat: l.lngLat},
+		place: {id: `sample-${i}`, name: l.name, district: sample.city, address: '', lngLat: l.lngLat, cityCode: sample.cityCode, cityName: `${sample.city}市`},
 		landmark: true,
 		name: l.name,
 		en: l.en,

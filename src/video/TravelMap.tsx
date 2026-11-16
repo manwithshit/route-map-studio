@@ -58,9 +58,12 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 
 	useEffect(() => {
 		if (!map) return;
-		const handle = delayRender(`Map frame ${frame}`, {timeoutInMilliseconds: 60000});
 		applyFrame(map, state);
-		// 等瓦片、GeoJSON 轨迹和相机全部画完才放行截图
+		// 只在渲染时等瓦片、GeoJSON 轨迹和相机全部画完才放行截图。
+		// 预览（Player）里不能这样做：连续播放时地图几乎不会进入 idle，每帧登记的
+		// delayRender 句柄和 idle 监听会以 60 个/秒堆积，几分钟后一次性触发，整页卡死数十秒。
+		if (!getRemotionEnvironment().isRendering) return;
+		const handle = delayRender(`Map frame ${frame}`, {timeoutInMilliseconds: 60000});
 		map.once('idle', () => continueRender(handle));
 		map.triggerRepaint();
 	}, [map, frame, state]);
