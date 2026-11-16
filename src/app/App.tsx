@@ -70,6 +70,8 @@ export const App: React.FC = () => {
 		});
 	}, [config]);
 	// 预览和渲染都只用“已算好的路线”。路线点没选全、跨城市、正在算路或路线已过期时，不能渲染
+	// 有硬性错误（太短、太长）的路线不进预览：几百公里的路线会让地图每帧加载新瓦片，整页卡死
+	const routeBroken = issues.find((i) => i.level === 'error')?.message ?? '';
 	const stale = wantKey !== s.routeKey;
 	const blocked = issues.some((i) => i.level === 'error') || !config || routing === 'loading' || !allPicked || Boolean(conflict) || stale;
 	const blockReason = !allPicked
@@ -138,7 +140,7 @@ export const App: React.FC = () => {
 						</select>
 					</label>
 					<button type="button" className="btn ghost small" onClick={() => setGate(true)}>
-						高德 Key：{key?.hasKey ? key.masked : '未填写'}
+						高德 Key：{!key ? '读取中…' : key.hasKey ? key.masked : '未填写'}
 					</button>
 				</div>
 			</header>
@@ -158,7 +160,13 @@ export const App: React.FC = () => {
 				</div>
 
 				<div className="main">
-					{previewConfig ? <Preview config={previewConfig} /> : <div className="empty">选好起点和终点后这里会出现预览</div>}
+					{routeBroken ? (
+						<div className="empty">{routeBroken}</div>
+					) : previewConfig ? (
+						<Preview config={previewConfig} />
+					) : (
+						<div className="empty">选好起点和终点后这里会出现预览</div>
+					)}
 					<div className="render">
 						<div className="render-info">
 							{rendering ? (

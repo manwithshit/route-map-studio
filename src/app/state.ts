@@ -136,13 +136,22 @@ export const sampleState = (id: string): WorkbenchState => {
 	};
 };
 
+// 旧版本存下的状态可能有跨城的点（当时没有城市码）和超长路线，载入时清掉，让用户重选
+export const sanitize = (s: WorkbenchState): WorkbenchState => {
+	const points = s.points.map((p) => (p.place && !p.place.cityCode ? {...p, place: null, name: '', en: ''} : p));
+	const dropped = points.some((p, i) => p !== s.points[i]);
+	const tooLong = (s.route?.distanceMeters ?? 0) > 80000;
+	if (!dropped && !tooLong) return s;
+	return {...s, points, route: null, routeKey: ''};
+};
+
 const STORAGE = 'route-map-studio/state/v1';
 export const loadState = (): WorkbenchState => {
 	try {
 		const raw = localStorage.getItem(STORAGE);
 		if (raw) {
 			const s = JSON.parse(raw) as WorkbenchState;
-			if (s.points?.length >= 2 && s.texts && s.show) return {...s, show: {...DEFAULT_SHOW, ...s.show}, durationS: s.durationS ?? DURATION_RANGE.default};
+			if (s.points?.length >= 2 && s.texts && s.show) return sanitize({...s, show: {...DEFAULT_SHOW, ...s.show}, durationS: s.durationS ?? DURATION_RANGE.default});
 		}
 	} catch {
 		/* 本地存储不可用时用示例 */

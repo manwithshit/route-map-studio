@@ -124,4 +124,14 @@ describe('同城规则', async () => {
 		expect(msg).toContain('途经点 2「洪崖洞」在重庆市');
 		expect(msg).toContain('起点「春熙路」在成都市');
 	});
+	it('旧版本存下的无城市码地点和超长路线，载入时被清掉', async () => {
+		const {sanitize, sampleState} = await import('../src/app/state');
+		const s = sampleState('chongqing');
+		const old = {...s, points: s.points.map((p, i) => (i === 0 ? {...p, place: {...p.place!, cityCode: ''}} : p)), route: {...s.route!, distanceMeters: 1_600_000}};
+		const clean = sanitize(old);
+		expect(clean.points[0].place).toBeNull();
+		expect(clean.points[1].place).not.toBeNull();
+		expect(clean.route).toBeNull();
+		expect(sanitize(s)).toBe(s);
+	});
 });
