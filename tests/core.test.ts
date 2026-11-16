@@ -135,3 +135,18 @@ describe('同城规则', async () => {
 		expect(sanitize(s)).toBe(s);
 	});
 });
+
+describe('途经点可选', async () => {
+	const {clearedRoute, emptyPoint, pointsKey, sampleState, toVideoConfig} = await import('../src/app/state');
+	it('清空后只剩起点和终点', () => {
+		const s = clearedRoute(sampleState('chengdu'));
+		expect(s.points.map((p) => p.role)).toEqual(['start', 'end']);
+		expect(s.route).toBeNull();
+	});
+	it('没选地点的途经点不改变算路，也不进地标', () => {
+		const s = sampleState('chengdu');
+		const withEmpty = {...s, points: [s.points[0], emptyPoint('via'), ...s.points.slice(1)]};
+		expect(pointsKey(withEmpty.points)).toBe(pointsKey(s.points));
+		expect(toVideoConfig(withEmpty)!.landmarks).toEqual(toVideoConfig(s)!.landmarks);
+	});
+});

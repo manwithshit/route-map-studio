@@ -5,11 +5,32 @@ import {ASPECTS, DURATION_RANGE, DYNAMICS_DEFAULT, type Aspect, type ComponentTo
 import {THEMES} from '../video/themes';
 import type {Place} from './api';
 import {PlaceSearch} from './PlaceSearch';
-import {emptyPoint, lockedCity, pointFromPlace, type RoutePoint, type WorkbenchState} from './state';
+import {clearedRoute, emptyPoint, lockedCity, pointFromPlace, type RoutePoint, type WorkbenchState} from './state';
 
 type Update = (fn: (s: WorkbenchState) => WorkbenchState) => void;
 
 const MAX_VIAS = 5;
+
+const Svg: React.FC<{children: React.ReactNode; size?: number}> = ({children, size = 14}) => (
+	<svg width={size} height={size} viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+		{children}
+	</svg>
+);
+const IconGrip = () => (
+	<svg width="8" height="14" viewBox="0 0 8 14" fill="currentColor" aria-hidden>
+		{[2, 7, 12].flatMap((y) => [<circle key={`a${y}`} cx="2" cy={y} r="1.2" />, <circle key={`b${y}`} cx="6" cy={y} r="1.2" />])}
+	</svg>
+);
+const IconClose = () => (
+	<Svg size={12}>
+		<path d="M4 4l8 8M12 4l-8 8" />
+	</Svg>
+);
+const IconSwap = () => (
+	<Svg>
+		<path d="M5 2.5v11M2.5 5L5 2.5 7.5 5M11 13.5v-11M8.5 11l2.5 2.5 2.5-2.5" />
+	</Svg>
+);
 
 export const Section: React.FC<{title: string; hint?: string; children: React.ReactNode}> = ({title, hint, children}) => (
 	<section className="panel">
@@ -49,12 +70,15 @@ export const RoutePanel: React.FC<{
 			return {...st, points: [start, ...vs, end]};
 		});
 
-	const addVia = () =>
+	const addVia = () => {
+		const p = emptyPoint('via');
 		update((st) => {
 			const pts = [...st.points];
-			pts.splice(pts.length - 1, 0, emptyPoint('via'));
+			pts.splice(pts.length - 1, 0, p);
 			return {...st, points: pts};
 		});
+		requestAnimationFrame(() => document.getElementById(`pt-${p.uid}`)?.focus());
+	};
 
 	const removeVia = (uid: string) => update((st) => ({...st, points: st.points.filter((p) => p.uid !== uid)}));
 
@@ -85,9 +109,11 @@ export const RoutePanel: React.FC<{
 		>
 			<div className="point-rail">
 				{p.role === 'via' ? (
-					<span
+					<button
+						type="button"
 						className="grip"
-						title="按住拖动排序"
+						title="拖动排序"
+						aria-label={`${label}：拖动排序，或按上下方向键移动`}
 						draggable
 						onDragStart={(e) => {
 							setDragging(p.uid);
@@ -95,9 +121,18 @@ export const RoutePanel: React.FC<{
 							e.dataTransfer.setData('text/plain', p.uid);
 						}}
 						onDragEnd={() => setDragging(null)}
+						onKeyDown={(e) => {
+							const i = vias.findIndex((v) => v.uid === p.uid);
+							const to = e.key === 'ArrowUp' ? i - 1 : e.key === 'ArrowDown' ? i + 1 : -1;
+							if (to < 0 || to >= vias.length) return;
+							e.preventDefault();
+							moveVia(p.uid, to);
+							requestAnimationFrame(() => (document.querySelector(`[data-grip="${p.uid}"]`) as HTMLElement | null)?.focus());
+						}}
+						data-grip={p.uid}
 					>
-						⋮⋮
-					</span>
+						<IconGrip />
+					</button>
 				) : null}
 				<span className={`dot ${p.role}`} />
 			</div>
@@ -121,7 +156,7 @@ export const RoutePanel: React.FC<{
 					id={`pt-${p.uid}`}
 					city={s.city}
 					value={p.place}
-					placeholder={p.role === 'start' ? '搜索起点' : p.role === 'end' ? '搜索终点' : '搜索途经点'}
+					placeholder={p.role === 'start' ? '搜索起点' : p.role === 'end' ? '搜索终点' : '搜索途经点，不填就跳过'}
 					lock={lockedCity(s.points, p.uid)}
 					onSelect={(place: Place) =>
 						update((st) => ({
@@ -151,27 +186,31 @@ export const RoutePanel: React.FC<{
 					row(
 						v,
 						`途经点 ${i + 1}`,
-						<span className="point-tools">
-							<button type="button" className="icon" aria-label="上移" disabled={i === 0} onClick={() => moveVia(v.uid, i - 1)}>
-								↑
-							</button>
-							<button type="button" className="icon" aria-label="下移" disabled={i === vias.length - 1} onClick={() => moveVia(v.uid, i + 1)}>
-								↓
-							</button>
-							<button type="button" className="icon" aria-label="删除途经点" onClick={() => removeVia(v.uid)}>
-								×
-							</button>
-						</span>,
+						<button type="button" className="point-remove" title="移除" aria-label={`移除途经点 ${i + 1}`} onClick={() => removeVia(v.uid)}>
+							<IconClose />
+						</button>,
 					),
 				)}
+				{vias.length < MAX_VIAS ? (
+					<div className="point add">
+						<div className="point-rail">
+							<span className="dot add" />
+						</div>
+						<button type="button" className="add-via" onClick={addVia}>
+							添加途经点
+							<span>可选，最多 {MAX_VIAS} 个</span>
+						</button>
+					</div>
+				) : null}
 				{row(s.points[s.points.length - 1], '终点')}
 			</div>
-			<div className="row">
-				<button type="button" className="btn ghost small" onClick={addVia} disabled={vias.length >= MAX_VIAS}>
-					＋ 添加途经点
+			<div className="route-actions">
+				<button type="button" className="text-btn" onClick={swapEnds}>
+					<IconSwap />
+					起终点互换
 				</button>
-				<button type="button" className="btn ghost small" onClick={swapEnds}>
-					⇅ 起终点互换
+				<button type="button" className="text-btn" onClick={() => update(clearedRoute)}>
+					清空重选
 				</button>
 			</div>
 			{conflict ? (

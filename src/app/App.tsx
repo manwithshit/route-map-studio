@@ -32,15 +32,16 @@ export const App: React.FC = () => {
 	useEffect(() => saveState(s), [s]);
 
 	// 路线点变化 → 自动重新算路（防抖）
+	// 途经点可不填：没选地点的途经点不参与算路，只有起点和终点是必选
 	const wantKey = pointsKey(s.points);
-	const allPicked = s.points.every((p) => p.place);
+	const allPicked = Boolean(s.points[0].place && s.points[s.points.length - 1].place);
 	const conflict = cityConflict(s.points);
 	useEffect(() => {
 		if (!allPicked || conflict || wantKey === s.routeKey) return;
 		setRouting('loading');
 		const timer = setTimeout(async () => {
 			try {
-				const r = await api.route(s.points.map((p) => p.place!.lngLat as LngLat));
+				const r = await api.route(s.points.filter((p) => p.place).map((p) => p.place!.lngLat as LngLat));
 				setS((st) => withDefaultTexts({...st, route: r, routeKey: wantKey}));
 				setRouting('idle');
 			} catch (e) {
@@ -75,7 +76,7 @@ export const App: React.FC = () => {
 	const stale = wantKey !== s.routeKey;
 	const blocked = issues.some((i) => i.level === 'error') || !config || routing === 'loading' || !allPicked || Boolean(conflict) || stale;
 	const blockReason = !allPicked
-		? '还有路线点没选，从搜索候选里选一个地点。'
+		? '起点和终点都要从搜索候选里选好，途经点可以不填。'
 		: conflict
 			? '路线点不在同一个城市，先改好再渲染。'
 			: routing === 'loading' || stale
@@ -86,11 +87,16 @@ export const App: React.FC = () => {
 
 	// 渲染进度轮询
 	const poll = useRef<ReturnType<typeof setInterval> | null>(null);
+	// 记下渲染时用的参数：渲染完成后再改参数，预览会马上变，但已保存的视频不会，要提示用户重新渲染
+	const sig = useMemo(() => JSON.stringify(config), [config]);
+	const [renderedSig, setRenderedSig] = useState('');
+	const outdated = job?.status === 'done' && renderedSig !== sig;
 	const startRender = async () => {
 		if (!config) return;
 		setRenderError('');
 		try {
 			const j = await api.render(config);
+			setRenderedSig(sig);
 			setJob(j);
 			poll.current = setInterval(async () => {
 				try {
@@ -160,13 +166,12 @@ export const App: React.FC = () => {
 				</div>
 
 				<div className="main">
-					{routeBroken ? (
-						<div className="empty">{routeBroken}</div>
-					) : previewConfig ? (
-						<Preview config={previewConfig} />
-					) : (
-						<div className="empty">选好起点和终点后这里会出现预览</div>
-					)}
+					<Preview
+						aspect={s.aspect}
+						durationS={s.durationS}
+						config={routeBroken || !allPicked ? null : previewConfig}
+						message={routeBroken || (allPicked ? '正在算路…' : '选好起点和终点后，这里开始预览')}
+					/>
 					<div className="render">
 						<div className="render-info">
 							{rendering ? (
@@ -178,6 +183,8 @@ export const App: React.FC = () => {
 										{job!.status === 'bundling' ? '首次渲染要先打包工程，大约 20 秒…' : `渲染中 ${Math.round(job!.progress * 100)}%`}
 									</span>
 								</>
+							) : outdated && !blockReason ? (
+								<span className="small warn-text">参数改过了：预览已经是新效果，但已保存的视频还是改之前的。要新视频，点「重新渲染」。</span>
 							) : job?.status === 'done' && job.output ? (
 								<span className="done">
 									已保存：{job.output.split('/').slice(-2).join('/')}
@@ -194,7 +201,7 @@ export const App: React.FC = () => {
 							)}
 						</div>
 						<button type="button" className="btn primary big" disabled={blocked || Boolean(rendering)} onClick={startRender}>
-							{rendering ? '渲染中…' : '渲染视频'}
+							{rendering ? '渲染中…' : outdated ? '重新渲染' : '渲染视频'}
 						</button>
 					</div>
 				</div>

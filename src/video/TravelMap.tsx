@@ -68,7 +68,19 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 		map.triggerRepaint();
 	}, [map, frame, state]);
 
-	return <div ref={containerRef} style={{position: 'absolute', width: tl.layout.width, height: tl.layout.height}} />;
+	return (
+		<>
+			<div ref={containerRef} style={{position: 'absolute', width: tl.layout.width, height: tl.layout.height}} />
+			{/* 只在工作台预览里提示：换主题、画幅或路线时地图要重建，加载瓦片需要一两秒 */}
+			{!map && !getRemotionEnvironment().isRendering ? (
+				<AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', background: 'rgba(0,0,0,0.35)'}}>
+					<div style={{padding: '18px 36px', borderRadius: 999, background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: tl.layout.width / 28, fontFamily: '"PingFang SC", sans-serif'}}>
+						地图加载中…
+					</div>
+				</AbsoluteFill>
+			) : null}
+		</>
+	);
 };
 
 export const TravelMap: React.FC<VideoConfig> = (cfg) => {

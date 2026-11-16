@@ -33,7 +33,16 @@ export const uid = () => Math.random().toString(36).slice(2, 9);
 
 export const emptyPoint = (role: PointRole): RoutePoint => ({uid: uid(), role, place: null, landmark: true, name: '', en: ''});
 
-export const pointFromPlace = (p: RoutePoint, place: Place): RoutePoint => {
+// 新路线默认只有起点和终点，途经点按需添加
+export const clearedRoute = (s: WorkbenchState): WorkbenchState => ({
+	...s,
+	points: [emptyPoint('start'), emptyPoint('end')],
+	route: null,
+	routeKey: '',
+	edited: {...s.edited, title1: false, title2: false, via: false},
+});
+
+export const pointFromPlace =(p: RoutePoint, place: Place): RoutePoint => {
 	const name = cleanName(place.name);
 	return {...p, place, name, en: defaultEn(name)};
 };
