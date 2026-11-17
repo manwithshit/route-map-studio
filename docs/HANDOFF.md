@@ -85,6 +85,13 @@
 
 两条成片 `~/Desktop/成都路线_黑金夜景.mp4` 和 `~/Desktop/重庆两江环线_全息线框.mp4`，用的是 `/tmp/remotion-map-test` 里的旧代码。工作台的“载入示例”能还原这两条路线；画面算法也一样，只多了地标卡交接时错开出场等小改动。`/tmp` 重启后会被清空，以后以这个仓库为准。
 
+## v0.1.4 一键安装和 README（2026-11-17）
+
+- **`install.sh`**：`curl -fsSL https://raw.githubusercontent.com/manwithshit/route-map-studio/main/install.sh | bash`。检查 macOS + Apple 芯片、git、Node ≥20；没有 pnpm 时用 `npx --yes pnpm@10`；已装过就 `git pull --ff-only` 更新；目录被别的东西占了就报错退出；装完自动启动。脚本整体包在 `main()` 里，防止下载中断时只执行半截。环境变量：`ROUTE_MAP_DIR`、`ROUTE_MAP_REPO`、`NO_START=1`、`PORT`。
+- **测试**：用本地 `ROUTE_MAP_REPO` 跑过首次安装、重复安装（更新）、没有 pnpm、目录被占用四种情况；没有终端（`/dev/tty` 打不开）时也能正常启动。
+- **注意**：仓库还是 private，`raw.githubusercontent.com` 和 `git clone` 对别人都会 404。公开仓库之后这条命令才能给别人用。
+- **README**：中英两份（`README.md`、`README.en.md`），配图都在 `assets/readme/`，来自真实成片抽帧和工作台截图，拼图脚本 `assets/readme/source/compose.mjs`。
+
 ## v0.1.3 修复：文案不实时、切组件文案回退（2026-11-16）
 
 - **根因**：`getTimeline` 按路线几何、时长、动感、地标和两个影响地图的开关做缓存，缓存里带着第一次建它时的整份配置；HUD 从 `tl.cfg` 读文案和开关。文案不在缓存键里，所以改文案后 HUD 一直读旧值；切“地图站名”“轨迹流光”会换缓存键，切回来又命中旧缓存，看起来就是文案回退。
