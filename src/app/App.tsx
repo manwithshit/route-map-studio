@@ -4,6 +4,7 @@ import {SAMPLES} from '../samples';
 import type {LngLat} from '../video/config';
 import {api, type Job} from './api';
 import {KeyGate} from './KeyGate';
+import {RenderButton} from './RenderButton';
 import {FieldsPanel, RoutePanel, StylePanel, TextsPanel} from './Panels';
 import {Preview} from './Preview';
 import {cityConflict, defaultTexts, loadState, pointsKey, sampleState, saveState, toVideoConfig, withDefaultTexts, type WorkbenchState} from './state';
@@ -118,6 +119,15 @@ export const App: React.FC = () => {
 	useEffect(() => () => void (poll.current && clearInterval(poll.current)), []);
 
 	const rendering = job && (job.status === 'bundling' || job.status === 'rendering');
+	// 渲染完成后外圈变绿停留一下再消失
+	const [flash, setFlash] = useState(false);
+	useEffect(() => {
+		if (job?.status !== 'done') return;
+		setFlash(true);
+		const t = setTimeout(() => setFlash(false), 1600);
+		return () => clearTimeout(t);
+	}, [job?.status, job?.id]);
+	const ringPhase = rendering ? (job!.status as 'bundling' | 'rendering') : flash ? 'done' : null;
 
 	return (
 		<div className="app">
@@ -176,14 +186,9 @@ export const App: React.FC = () => {
 					<div className="render">
 						<div className="render-info">
 							{rendering ? (
-								<>
-									<div className="progress">
-										<div style={{width: `${Math.round((job!.progress ?? 0) * 100)}%`}} />
-									</div>
-									<span className="muted small">
-										{job!.status === 'bundling' ? '首次渲染要先打包工程，大约 20 秒…' : `渲染中 ${Math.round(job!.progress * 100)}%`}
-									</span>
-								</>
+								<span className="muted small">
+									{job!.status === 'bundling' ? '首次渲染要先打包工程，大约 20 秒…' : '按钮外圈走满一圈就渲染好了，约 1–2 分钟'}
+								</span>
 							) : outdated && !blockReason ? (
 								<span className="small warn-text">参数改过了：预览已经是新效果，但已保存的视频还是改之前的。要新视频，点「重新渲染」。</span>
 							) : job?.status === 'done' && job.output ? (
@@ -201,9 +206,13 @@ export const App: React.FC = () => {
 								<span className="muted small">预览只是播放，不会生成文件。点「渲染视频」才开始渲染，保存到桌面的「路线视频」文件夹，约 1–2 分钟。</span>
 							)}
 						</div>
-						<button type="button" className="btn primary big" disabled={blocked || Boolean(rendering)} onClick={startRender}>
-							{rendering ? '渲染中…' : outdated ? '重新渲染' : '渲染视频'}
-						</button>
+						<RenderButton
+							label={job?.status === 'bundling' ? '准备中…' : rendering ? `渲染中 ${Math.round(job!.progress * 100)}%` : outdated ? '重新渲染' : '渲染视频'}
+							disabled={blocked}
+							phase={ringPhase}
+							progress={job?.progress ?? 0}
+							onClick={startRender}
+						/>
 					</div>
 				</div>
 			</main>

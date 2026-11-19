@@ -734,16 +734,87 @@ input[type='checkbox'] {
 	flex-direction: column;
 	gap: 6px;
 }
-.progress {
-	height: 6px;
-	border-radius: 3px;
-	background: var(--line);
-	overflow: hidden;
+/* 渲染按钮外圈进度 */
+.render-btn {
+	position: relative;
+	display: inline-flex;
+	flex: none;
 }
-.progress div {
-	height: 100%;
-	background: var(--accent);
-	transition: width 0.4s ease;
+.render-btn .btn {
+	min-width: 132px;
+	justify-content: center;
+	font-variant-numeric: tabular-nums;
+}
+.render-btn.bundling .btn:disabled,
+.render-btn.rendering .btn:disabled {
+	opacity: 1;
+	cursor: progress;
+}
+.ring {
+	position: absolute;
+	inset: -5px;
+	width: calc(100% + 10px);
+	height: calc(100% + 10px);
+	overflow: visible;
+	pointer-events: none;
+}
+.ring rect {
+	/* 往里收半个线宽，描边不被画布边缘裁掉 */
+	x: 1.5px;
+	y: 1.5px;
+	width: calc(100% - 3px);
+	height: calc(100% - 3px);
+	fill: none;
+	stroke-width: 3;
+	stroke-linecap: round;
+}
+.ring-track {
+	stroke: var(--line-2);
+}
+.ring-fill {
+	stroke: var(--accent);
+	stroke-dasharray: 100;
+	transition: stroke-dashoffset 0.65s linear, stroke 0.2s;
+}
+.ring-fill.indeterminate {
+	stroke-dasharray: 16 84;
+	animation: ring-run 1.6s linear infinite;
+}
+@keyframes ring-run {
+	to {
+		stroke-dashoffset: -100;
+	}
+}
+.render-btn.done .ring {
+	animation: ring-out 1.6s ease-in forwards;
+}
+.render-btn.done .ring-fill {
+	stroke: var(--ok);
+}
+@keyframes ring-out {
+	0%,
+	55% {
+		opacity: 1;
+	}
+	100% {
+		opacity: 0;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.ring-fill,
+	.ring-fill.indeterminate,
+	.render-btn.done .ring {
+		animation: none;
+		transition: none;
+	}
+}
+.sr-only {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
 }
 .done {
 	display: flex;
@@ -868,9 +939,6 @@ input[type='checkbox'] {
 @media (prefers-reduced-motion: reduce) {
 	.search-spin {
 		animation: none;
-	}
-	.progress div {
-		transition: none;
 	}
 }
 .warn-text {
