@@ -2,7 +2,7 @@ import {useEffect, useMemo, useRef, useState} from 'react';
 import {AbsoluteFill, continueRender, delayRender, getRemotionEnvironment, useCurrentFrame} from 'remotion';
 import {Map as MLMap, type GeoJSONSource} from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
-import type {VideoConfig} from './config';
+import {FPS, outFps, type VideoConfig} from './config';
 import {Hud, SceneContext} from './Hud';
 import {buildStyle} from './mapStyle';
 import {getTheme} from './themes';
@@ -261,7 +261,8 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 };
 
 export const TravelMap: React.FC<VideoConfig> = (cfg) => {
-	const frame = useCurrentFrame();
+	// 换算成 60 帧时间轴上的帧号：30fps 时第 n 帧取时间轴第 2n 帧
+	const frame = useCurrentFrame() * (FPS / outFps(cfg));
 	const theme = getTheme(cfg.theme);
 	const cached = getTimeline(cfg);
 	// 时间轴按路线几何缓存，缓存里的 cfg 是第一次建它时的配置。文案和组件开关不参与缓存键，

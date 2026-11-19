@@ -326,6 +326,16 @@ export const FieldsPanel: React.FC<{s: WorkbenchState; update: Update}> = ({s, u
 				))}
 			</div>
 		</div>
+		<div className="field">
+			<span>帧率</span>
+			<div className="seg" role="radiogroup" aria-label="帧率">
+				{([60, 30] as const).map((f) => (
+					<button key={f} type="button" role="radio" aria-checked={s.fps === f} className={s.fps === f ? 'on' : ''} onClick={() => update((st) => ({...st, fps: f}))}>
+						{f === 60 ? '60fps 顺滑' : '30fps 快一倍'}
+					</button>
+				))}
+			</div>
+		</div>
 		<label className="field">
 			<span>
 				时长 <b className="num">{s.durationS.toFixed(1)} 秒</b>

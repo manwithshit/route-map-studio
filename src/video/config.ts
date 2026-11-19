@@ -43,7 +43,10 @@ export type VideoConfig = {
 	landmarks: Landmark[]; // 按行进顺序；只包含“弹地标”的点
 	texts: Texts;
 	show: ComponentToggles;
+	fps?: OutputFps; // 成片帧率，默认 60
 };
+
+export type OutputFps = 30 | 60;
 
 export const ASPECTS: Record<Aspect, {width: number; height: number; label: string}> = {
 	'9:16': {width: 1080, height: 1920, label: '9:16 竖屏'},
@@ -53,7 +56,9 @@ export const ASPECTS: Record<Aspect, {width: number; height: number; label: stri
 
 export const DURATION_RANGE = {min: 6, max: 14, step: 0.5, default: 8.5};
 export const DYNAMICS_DEFAULT = 50;
+// 时间轴固定按 60 帧算（镜头平滑、动画节奏都按它调过）。出 30fps 时隔一帧取一帧，画面节奏不变。
 export const FPS = 60;
+export const outFps = (c: Pick<VideoConfig, 'fps'>): OutputFps => (c.fps === 30 ? 30 : 60);
 
 export const DEFAULT_SHOW: ComponentToggles = {
 	title: true,
@@ -74,4 +79,4 @@ export const DEFAULT_TEXTS: Texts = {
 	via: '',
 };
 
-export const durationFrames = (c: Pick<VideoConfig, 'durationS'>) => Math.round(FPS * c.durationS);
+export const durationFrames = (c: Pick<VideoConfig, 'durationS' | 'fps'>) => Math.round(outFps(c) * c.durationS);

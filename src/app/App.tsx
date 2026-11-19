@@ -151,7 +151,7 @@ export const App: React.FC = () => {
 							id="sample"
 							value=""
 							onChange={(e) => {
-								if (e.target.value) setS(sampleState(e.target.value));
+								if (e.target.value) setS((st) => ({...sampleState(e.target.value), fps: st.fps}));
 							}}
 						>
 							<option value="">选择…</option>

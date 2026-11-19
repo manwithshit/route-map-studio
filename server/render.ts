@@ -52,7 +52,8 @@ export const startRender = (config: VideoConfig, opts: {scale?: number; outputDi
 	running = job;
 	const dir = opts.outputDir ?? OUTPUT_DIR;
 	mkdirSync(dir, {recursive: true});
-	const output = path.join(dir, `${safeName(config.texts.title1 + config.texts.title2)}_${config.aspect.replace(':', 'x')}_${stamp()}.mp4`);
+	const fpsTag = config.fps === 30 ? '_30fps' : '';
+	const output = path.join(dir, `${safeName(config.texts.title1 + config.texts.title2)}_${config.aspect.replace(':', 'x')}${fpsTag}_${stamp()}.mp4`);
 
 	(async () => {
 		try {

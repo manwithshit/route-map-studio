@@ -2,7 +2,7 @@
 // 没有路线时也按所选画幅画出空画框，让用户先看到成片的比例和尺寸。
 import {Player} from '@remotion/player';
 import {useEffect, useRef, useState} from 'react';
-import {ASPECTS, durationFrames, FPS, type Aspect, type VideoConfig} from '../video/config';
+import {ASPECTS, durationFrames, outFps, type Aspect, type VideoConfig} from '../video/config';
 import {getLayout} from '../video/layout';
 import {TravelMap} from '../video/TravelMap';
 
@@ -54,7 +54,7 @@ export const Preview: React.FC<{aspect: Aspect; durationS: number; config: Video
 							component={TravelMap}
 							inputProps={live}
 							durationInFrames={durationFrames(live)}
-							fps={FPS}
+							fps={outFps(live)}
 							compositionWidth={width}
 							compositionHeight={height}
 							style={{width: size.w, height: size.h}}

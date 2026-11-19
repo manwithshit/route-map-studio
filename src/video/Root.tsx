@@ -1,6 +1,6 @@
 import {Composition} from 'remotion';
 import {sampleConfig} from '../samples';
-import {ASPECTS, durationFrames, FPS, type VideoConfig} from './config';
+import {ASPECTS, durationFrames, FPS, outFps, type VideoConfig} from './config';
 import {TravelMap} from './TravelMap';
 
 export const COMPOSITION_ID = 'TravelMap';
@@ -17,6 +17,7 @@ export const Root: React.FC = () => (
 		defaultProps={sampleConfig('chengdu') as VideoConfig}
 		calculateMetadata={({props}) => ({
 			durationInFrames: durationFrames(props),
+			fps: outFps(props),
 			width: ASPECTS[props.aspect].width,
 			height: ASPECTS[props.aspect].height,
 		})}

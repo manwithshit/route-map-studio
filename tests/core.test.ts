@@ -224,3 +224,13 @@ describe('下线的风格', async () => {
 		expect(out.points).toBe(s.points);
 	});
 });
+
+describe('30fps 输出', async () => {
+	const {durationFrames, outFps} = await import('../src/video/config');
+	it('帧数按输出帧率算，默认 60', () => {
+		const c = sampleConfig('chengdu');
+		expect(outFps(c)).toBe(60);
+		expect(durationFrames(c)).toBe(510);
+		expect(durationFrames({...c, fps: 30})).toBe(255);
+	});
+});

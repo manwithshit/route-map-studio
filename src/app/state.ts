@@ -2,7 +2,7 @@
 import {DEFAULT_THEME, THEMES} from '../video/themes';
 import {sampleConfig, SAMPLES} from '../samples';
 import {cleanName, defaultEn} from '../shared/names';
-import {DEFAULT_SHOW, DEFAULT_TEXTS, DURATION_RANGE, DYNAMICS_DEFAULT, type Aspect, type ComponentToggles, type LngLat, type Texts, type VideoConfig} from '../video/config';
+import {DEFAULT_SHOW, DEFAULT_TEXTS, DURATION_RANGE, DYNAMICS_DEFAULT, type Aspect, type ComponentToggles, type LngLat, type OutputFps, type Texts, type VideoConfig} from '../video/config';
 import type {Place, RouteResult} from './api';
 
 export type PointRole = 'start' | 'via' | 'end';
@@ -25,6 +25,7 @@ export type WorkbenchState = {
 	aspect: Aspect;
 	durationS: number;
 	dynamics: number;
+	fps: OutputFps;
 	texts: Texts;
 	edited: Partial<Record<keyof Texts, boolean>>; // 用户手动改过的文案
 	show: ComponentToggles;
@@ -111,6 +112,7 @@ export const toVideoConfig = (s: WorkbenchState): VideoConfig | null => {
 		aspect: s.aspect,
 		durationS: s.durationS,
 		dynamics: s.dynamics,
+		fps: s.fps,
 		route: {coordinates: s.route.coordinates, distanceMeters: s.route.distanceMeters, source: s.route.source},
 		landmarks: s.points.filter((p) => p.place && p.landmark).map((p) => ({name: p.name || cleanName(p.place!.name), en: p.en, lngLat: p.place!.lngLat as LngLat})),
 		texts: s.texts,
@@ -140,6 +142,7 @@ export const sampleState = (id: string): WorkbenchState => {
 		aspect: '9:16',
 		durationS: cfg.durationS,
 		dynamics: DYNAMICS_DEFAULT,
+		fps: 60,
 		texts: {...DEFAULT_TEXTS, ...cfg.texts},
 		edited: {title1: true, title2: true},
 		show: {...DEFAULT_SHOW},
@@ -163,7 +166,7 @@ export const loadState = (): WorkbenchState => {
 		const raw = localStorage.getItem(STORAGE);
 		if (raw) {
 			const s = JSON.parse(raw) as WorkbenchState;
-			if (s.points?.length >= 2 && s.texts && s.show) return sanitize({...s, show: {...DEFAULT_SHOW, ...s.show}, durationS: s.durationS ?? DURATION_RANGE.default});
+			if (s.points?.length >= 2 && s.texts && s.show) return sanitize({...s, show: {...DEFAULT_SHOW, ...s.show}, durationS: s.durationS ?? DURATION_RANGE.default, fps: s.fps === 30 ? 30 : 60});
 		}
 	} catch {
 		/* 本地存储不可用时用示例 */
