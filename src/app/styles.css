@@ -555,6 +555,7 @@ input[type='checkbox'] {
 	gap: 8px;
 }
 .theme {
+	position: relative;
 	padding: 0;
 	border: 1px solid var(--line-2);
 	border-radius: 8px;
@@ -584,6 +585,17 @@ input[type='checkbox'] {
 	width: 8px;
 	height: 8px;
 	border-radius: 50%;
+}
+.theme-badge {
+	position: absolute;
+	top: 6px;
+	right: 6px;
+	padding: 2px 7px;
+	border-radius: 999px;
+	font-size: 11px;
+	font-weight: 600;
+	background: var(--accent);
+	color: var(--accent-ink);
 }
 .theme.on {
 	border-color: var(--accent);
@@ -749,6 +761,30 @@ input[type='checkbox'] {
 .render-btn.rendering .btn:disabled {
 	opacity: 1;
 	cursor: progress;
+}
+.render-btn.dimmed .btn:disabled {
+	opacity: 0.45;
+	cursor: not-allowed;
+}
+.render-btn.dimmed .ring {
+	opacity: 0.55;
+}
+.render-what {
+	display: inline-flex;
+	align-items: center;
+	gap: 10px;
+	line-height: 1.45;
+}
+.render-what img {
+	width: 44px;
+	height: 33px;
+	flex: none;
+	border-radius: 5px;
+	object-fit: cover;
+	border: 1px solid var(--line-2);
+}
+.render-what-name {
+	color: var(--ink);
 }
 .ring {
 	position: absolute;

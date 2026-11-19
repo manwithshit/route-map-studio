@@ -266,7 +266,7 @@ const THEME_GROUPS = Object.values(THEMES).reduce<{name: string; themes: (typeof
 	return acc;
 }, []);
 
-export const StylePanel: React.FC<{s: WorkbenchState; update: Update}> = ({s, update}) => {
+export const StylePanel: React.FC<{s: WorkbenchState; update: Update; renderingTheme?: string}> = ({s, update, renderingTheme}) => {
 	const current = THEMES[s.theme];
 	return (
 		<Section title="风格" hint={`${Object.keys(THEMES).length} 套`}>
@@ -286,6 +286,7 @@ export const StylePanel: React.FC<{s: WorkbenchState; update: Update}> = ({s, up
 									onClick={() => update((st) => ({...st, theme: t.id}))}
 								>
 									<img src={`/themes/${t.id}.jpg`} alt="" loading="lazy" />
+									{renderingTheme === t.id ? <span className="theme-badge">渲染中</span> : null}
 									<span className="theme-name">
 										<i style={{background: t.accent}} />
 										{t.label}

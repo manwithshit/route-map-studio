@@ -1,7 +1,8 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import {checkRoute} from '../shared/health';
 import {SAMPLES} from '../samples';
-import type {LngLat} from '../video/config';
+import type {LngLat, VideoConfig} from '../video/config';
+import {THEMES} from '../video/themes';
 import {api, type Job} from './api';
 import {KeyGate} from './KeyGate';
 import {RenderButton} from './RenderButton';
@@ -92,6 +93,7 @@ export const App: React.FC = () => {
 	// 记下渲染时用的参数：渲染完成后再改参数，预览会马上变，但已保存的视频不会，要提示用户重新渲染
 	const sig = useMemo(() => JSON.stringify(config), [config]);
 	const [renderedSig, setRenderedSig] = useState('');
+	const [renderedCfg, setRenderedCfg] = useState<VideoConfig | null>(null);
 	const outdated = job?.status === 'done' && renderedSig !== sig;
 	const startRender = async () => {
 		if (!config) return;
@@ -99,6 +101,7 @@ export const App: React.FC = () => {
 		try {
 			const j = await api.render(config);
 			setRenderedSig(sig);
+			setRenderedCfg(config);
 			setJob(j);
 			poll.current = setInterval(async () => {
 				try {
@@ -128,6 +131,9 @@ export const App: React.FC = () => {
 		return () => clearTimeout(t);
 	}, [job?.status, job?.id]);
 	const ringPhase = rendering ? (job!.status as 'bundling' | 'rendering') : flash ? 'done' : null;
+	// 渲染时可以继续改参数、看别的风格；这时按钮置灰，旁边写明正在渲染的是哪一版
+	const viewingOther = Boolean(rendering) && renderedSig !== sig;
+	const renderingWhat = renderedCfg ? `${THEMES[renderedCfg.theme]?.label ?? renderedCfg.theme} · ${renderedCfg.aspect} · ${renderedCfg.texts.title1}${renderedCfg.texts.title2}` : '';
 
 	return (
 		<div className="app">
@@ -165,7 +171,7 @@ export const App: React.FC = () => {
 			<main className="body">
 				<div className="side">
 					<RoutePanel s={s} update={update} routing={routing} routeError={routeError} conflict={conflict} issues={issues} onKeyError={() => setGate(true)} />
-					<StylePanel s={s} update={update} />
+					<StylePanel s={s} update={update} renderingTheme={rendering ? renderedCfg?.theme : undefined} />
 					<FieldsPanel s={s} update={update} />
 					<TextsPanel
 						s={s}
@@ -186,8 +192,19 @@ export const App: React.FC = () => {
 					<div className="render">
 						<div className="render-info">
 							{rendering ? (
-								<span className="muted small">
-									{job!.status === 'bundling' ? '首次渲染要先打包工程，大约 20 秒…' : '按钮外圈走满一圈就渲染好了，约 1–2 分钟'}
+								<span className="render-what small">
+									{renderedCfg ? <img src={`/themes/${renderedCfg.theme}.jpg`} alt="" /> : null}
+									<span>
+										<span className="render-what-name">正在渲染：{renderingWhat}</span>
+										<br />
+										<span className="muted">
+											{viewingOther
+												? '你现在看的是另一版，等这条渲染完才能渲染它。'
+												: job!.status === 'bundling'
+													? '首次渲染要先打包工程，大约 20 秒…'
+													: '按钮外圈走满一圈就渲染好了，约 1–2 分钟'}
+										</span>
+									</span>
 								</span>
 							) : outdated && !blockReason ? (
 								<span className="small warn-text">参数改过了：预览已经是新效果，但已保存的视频还是改之前的。要新视频，点「重新渲染」。</span>
@@ -210,6 +227,7 @@ export const App: React.FC = () => {
 							label={job?.status === 'bundling' ? '准备中…' : rendering ? `渲染中 ${Math.round(job!.progress * 100)}%` : outdated ? '重新渲染' : '渲染视频'}
 							disabled={blocked}
 							phase={ringPhase}
+							dimmed={viewingOther}
 							progress={job?.progress ?? 0}
 							onClick={startRender}
 						/>

@@ -5,12 +5,13 @@ export const RenderButton: React.FC<{
 	disabled: boolean;
 	phase: 'bundling' | 'rendering' | 'done' | null;
 	progress: number; // 0–1
+	dimmed?: boolean; // 正在渲染的不是当前看的这一版：按钮置灰
 	onClick: () => void;
-}> = ({label, disabled, phase, progress, onClick}) => {
+}> = ({label, disabled, phase, progress, dimmed, onClick}) => {
 	const busy = phase === 'bundling' || phase === 'rendering';
 	const pct = Math.round(Math.min(1, Math.max(0, progress)) * 100);
 	return (
-		<span className={`render-btn ${phase ?? ''}`}>
+		<span className={`render-btn ${phase ?? ''} ${dimmed ? 'dimmed' : ''}`}>
 			<button type="button" className="btn primary big" disabled={disabled || busy} aria-busy={busy} onClick={onClick}>
 				{label}
 			</button>
