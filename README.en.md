@@ -51,13 +51,13 @@ The workbench asks for an **Amap (高德) Web Service key** for place search. Ev
 
 The key is stored only in `config.local.json` on your machine. To change or delete it, click the 「高德 Key」 button at the top right of the workbench.
 
-## Thirteen themes
+## Twelve themes
 
 <p align="center">
   <img src="./assets/readme/themes-en.webp" width="100%" alt="The same Chengdu route in six themes: Midnight Cyan, Cyber Neon, Black Gold, Hologram, Blueprint, Rednote Red">
 </p>
 
-One click changes the base map, buildings, roads, trail and HUD colours together. Besides the six night themes shown below, there are daylight themes (Daylight, Miniature), paper themes (Vintage, Ink, Storybook) and terrain themes (Terrain, Night Hills): thirteen in total.
+One click changes the base map, buildings, roads, trail and HUD colours together. Twelve themes in four groups: night (Midnight Cyan, Cyber Neon, Hologram, Blueprint, Rednote Red), daylight (Daylight, Miniature), paper (Vintage, Ink, Storybook) and terrain (Terrain, Night Hills). The image below shows an earlier version of the night group; Black Gold has since been removed.
 
 ## Three aspect ratios
 

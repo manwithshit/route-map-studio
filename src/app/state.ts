@@ -1,4 +1,5 @@
 // 工作台状态：路线点 + 视频配置。地标和默认文案从路线点推导，用户改过的文案不会被覆盖。
+import {DEFAULT_THEME, THEMES} from '../video/themes';
 import {sampleConfig, SAMPLES} from '../samples';
 import {cleanName, defaultEn} from '../shared/names';
 import {DEFAULT_SHOW, DEFAULT_TEXTS, DURATION_RANGE, DYNAMICS_DEFAULT, type Aspect, type ComponentToggles, type LngLat, type Texts, type VideoConfig} from '../video/config';
@@ -150,8 +151,10 @@ export const sanitize = (s: WorkbenchState): WorkbenchState => {
 	const points = s.points.map((p) => (p.place && !p.place.cityCode ? {...p, place: null, name: '', en: ''} : p));
 	const dropped = points.some((p, i) => p !== s.points[i]);
 	const tooLong = (s.route?.distanceMeters ?? 0) > 80000;
-	if (!dropped && !tooLong) return s;
-	return {...s, points, route: null, routeKey: ''};
+	// 已经下线的风格（如黑金夜景）换成默认风格，否则风格区一个都不选中
+	const theme = THEMES[s.theme] ? s.theme : DEFAULT_THEME;
+	if (!dropped && !tooLong) return theme === s.theme ? s : {...s, theme};
+	return {...s, theme, points, route: null, routeKey: ''};
 };
 
 const STORAGE = 'route-map-studio/state/v1';

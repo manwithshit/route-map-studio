@@ -15,7 +15,7 @@ type Sample = {
 };
 
 export const SAMPLES: Sample[] = [
-	{id: 'chengdu', label: '成都 · 天府广场到二仙桥', city: '成都', cityCode: '5101', data: chengdu, theme: 'gold', durationS: 8.5, title: ['走成华大道，', '到二仙桥']},
+	{id: 'chengdu', label: '成都 · 天府广场到二仙桥', city: '成都', cityCode: '5101', data: chengdu, theme: 'cyan', durationS: 8.5, title: ['走成华大道，', '到二仙桥']},
 	{id: 'chongqing', label: '重庆 · 两江环线', city: '重庆', cityCode: '5001', data: chongqing, theme: 'hologram', durationS: 9.5, title: ['重庆两江环线，', '一路跨三桥']},
 ];
 

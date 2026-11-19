@@ -159,7 +159,7 @@ describe('卡通和地形风格', async () => {
 		return buildStyle(THEMES[theme], getTimeline(cfg)).layers.map((l) => l.id);
 	};
 	it('前 6 套的图层顺序不变', () => {
-		expect(ids('gold')).toEqual(ids('cyan'));
+		expect(ids('xhs')).toEqual(ids('cyan'));
 		expect(ids('cyan')).toContain('trace-halo');
 		expect(ids('cyan')).toContain('head-core');
 		expect(ids('cyan')).not.toContain('head-car');
@@ -212,4 +212,15 @@ describe('卡通和地形风格', async () => {
 			expect(worst).toBeLessThan(13);
 		});
 	}
+});
+
+describe('下线的风格', async () => {
+	const {sanitize} = await import('../src/app/state');
+	const {sampleState} = await import('../src/app/state');
+	it('旧存档里的黑金夜景换成默认风格，路线保留', () => {
+		const s = {...sampleState('chengdu'), theme: 'gold'};
+		const out = sanitize(s);
+		expect(out.theme).toBe('cyan');
+		expect(out.points).toBe(s.points);
+	});
 });
