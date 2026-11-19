@@ -150,3 +150,43 @@ describe('途经点可选', async () => {
 		expect(toVideoConfig(withEmpty)!.landmarks).toEqual(toVideoConfig(s)!.landmarks);
 	});
 });
+
+describe('卡通和地形风格', async () => {
+	const {THEMES} = await import('../src/video/themes');
+	const {buildStyle} = await import('../src/video/mapStyle');
+	const ids = (theme: string) => {
+		const cfg = {...sampleConfig('chengdu'), theme};
+		return buildStyle(THEMES[theme], getTimeline(cfg)).layers.map((l) => l.id);
+	};
+	it('前 6 套的图层顺序不变', () => {
+		expect(ids('gold')).toEqual(ids('cyan'));
+		expect(ids('cyan')).toContain('trace-halo');
+		expect(ids('cyan')).toContain('head-core');
+		expect(ids('cyan')).not.toContain('head-car');
+	});
+	it('卡通不画发光，车头换成小车', () => {
+		const l = ids('toon');
+		expect(l).toContain('head-car');
+		expect(l).toContain('trace-case');
+		for (const glow of ['trace-halo', 'trace-glow', 'flow-glow', 'road-major-glow', 'head-glow', 'head-ring']) expect(l).not.toContain(glow);
+	});
+	it('地形风格带海拔和山体阴影', () => {
+		const style = buildStyle(THEMES.terrain, getTimeline({...sampleConfig('chongqing'), theme: 'terrain'}));
+		expect(style.terrain?.source).toBe('dem');
+		expect(style.layers.map((l) => l.id)).toEqual(expect.arrayContaining(['relief', 'hillshade']));
+	});
+	// 不平滑时重庆示例的急弯一帧会转 27° 以上，看着像车在跳
+	for (const id of ['chengdu', 'chongqing']) {
+		it(`${id}：小车朝向逐帧连续，一帧转向不超过 13°`, () => {
+			const tl = getTimeline({...sampleConfig(id), theme: 'toon'});
+			let prev: number | null = null;
+			let worst = 0;
+			for (let f = 0; f < Math.round(tl.cfg.durationS * 60); f++) {
+				const hd = tl.getFrameState(f).headFc.features.find((x) => x.properties?.kind === 'core')!.properties!.hd as number;
+				if (prev !== null) worst = Math.max(worst, Math.abs(hd - prev));
+				prev = hd;
+			}
+			expect(worst).toBeLessThan(13);
+		});
+	}
+});

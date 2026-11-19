@@ -51,13 +51,13 @@ The workbench asks for an **Amap (高德) Web Service key** for place search. Ev
 
 The key is stored only in `config.local.json` on your machine. To change or delete it, click the 「高德 Key」 button at the top right of the workbench.
 
-## Six themes
+## Eight themes
 
 <p align="center">
   <img src="./assets/readme/themes-en.webp" width="100%" alt="The same Chengdu route in six themes: Midnight Cyan, Cyber Neon, Black Gold, Hologram, Blueprint, Rednote Red">
 </p>
 
-One click changes the base map, buildings, roads, trail and HUD colours together.
+One click changes the base map, buildings, roads, trail and HUD colours together. Two more themes use a different look: **Storybook** (paper ground, outlined roads, a cartoon car on the route) and **Terrain** (real elevation with hillshade, best for hilly cities, hikes and rides). The image shows the first six.
 
 ## Three aspect ratios
 

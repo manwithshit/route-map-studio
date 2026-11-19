@@ -209,6 +209,20 @@ const buildTimeline = (cfg: VideoConfig) => {
 		};
 	})();
 
+	// Q 版小车的车头朝向：看前后约 120m 的路段，再在帧域里平滑约 0.25 秒，路口转弯是一段弧，不跳
+	const HEAD_YAW = (() => {
+		let prev = 0;
+		const raw = Array.from({length: DURATION_FRAMES}, (_, f) => {
+			const km = travelProgress(f / FPS) * ROUTE_KM;
+			const a = along(km - 0.06);
+			const b = along(km + 0.06);
+			const h = (Math.atan2((b[0] - a[0]) * COS_LAT, b[1] - a[1]) * 180) / Math.PI;
+			prev = prev + wrap180(h - prev);
+			return prev;
+		});
+		return gaussSmooth(raw, 8);
+	})();
+
 	// 收尾全景：按 BASE_BEARING 旋转后的包围盒，放进安全区内的取景框
 	const {fitCamera, spanM} = (() => {
 		const b = (BASE_BEARING * Math.PI) / 180;
@@ -301,7 +315,7 @@ const buildTimeline = (cfg: VideoConfig) => {
 		const headFc = turf.featureCollection([
 			turf.point(head, {kind: 'ring', ...ring(phase)}),
 			turf.point(head, {kind: 'ring', ...ring((phase + 0.5) % 1)}),
-			turf.point(head, {kind: 'core', rr: 0, ro: 1}),
+			turf.point(head, {kind: 'core', rr: 0, ro: 1, hd: HEAD_YAW[fi]}),
 		]) as PointCollection;
 
 		let activeStop = -1;

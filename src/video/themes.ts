@@ -30,6 +30,23 @@ export type Theme = {
 	stopIdle: string;
 	sky: {sky: string; horizon: string; fog: string};
 	light: string;
+	// ── 以下是可选的画法开关。不填就是前 6 套的霓虹发光画法 ──
+	flat?: boolean; // 不画任何发光：轨迹、道路、HUD 都去掉光晕
+	text?: string; // HUD 主文字色，默认白色；浅色底图要换深色
+	shadow?: string; // HUD 卡片投影
+	vignette?: number; // 四角压暗强度，默认 0.55
+	paper?: boolean; // 画面叠一层纸张纹理
+	lightIntensity?: number; // 楼块光照强度，默认 0.32
+	roadCase?: string; // 主干道描边色：有它就画描边，不画道路光晕
+	traceCase?: string; // 轨迹描边色，也用作未走路段的虚线色
+	headIcon?: 'car'; // 车头换成 Q 版小车，车头朝向跟着路走
+	buildingScale?: number; // 楼高倍率，默认 1
+	terrain?: {
+		exaggeration: number; // 地形高度放大倍数
+		shadow: string; // 山体阴影色
+		highlight: string; // 山体受光色
+		relief: [number, string][]; // 按海拔（米）着色
+	};
 };
 
 export const THEMES: Record<string, Theme> = {
@@ -205,6 +222,93 @@ export const THEMES: Record<string, Theme> = {
 		stopIdle: '#2a0c12',
 		sky: {sky: '#060203', horizon: '#3a0c16', fog: '#100608'},
 		light: '#ffc0c8',
+	},
+	toon: {
+		id: 'toon',
+		label: '手账卡通',
+		desc: '奶油纸底、粗描边道路、矮胖的彩色楼块，Q 版小车沿路跑，像旅行手账。',
+		bg: '#f4e7c8',
+		bgRgb: '244,231,200',
+		accent: '#ff6b4a',
+		head: '#ff6b4a',
+		halo: '#ff6b4a',
+		trace: ['#ffb199', '#ff8a65', '#ff6b4a', '#ff5a36'],
+		ink: '120,88,60',
+		glass: ['255,251,240', '250,240,215'],
+		residential: '#f0dcae',
+		green: '#bcd98c',
+		water: '#8fcfe6',
+		waterEdge: '#5a9fbf',
+		waterway: '#7cc0dc',
+		roadMinor: '#fff8e6',
+		roadMajor: '#ffffff',
+		roadGlow: '#c9a77a',
+		highway: '#ffd36b',
+		rail: '#c9a77a',
+		building: ['#f7d6a8', '#f2b8a2', '#a9cfe8'],
+		buildingOpacity: 1,
+		buildingOutline: '#c49a68',
+		stopIdle: '#fff3d6',
+		sky: {sky: '#bfe3f2', horizon: '#fff6df', fog: '#f4e7c8'},
+		light: '#ffffff',
+		flat: true,
+		text: '#4a3020',
+		shadow: '0 10px 28px rgba(110,70,30,0.22), inset 0 1px 0 rgba(255,255,255,0.6)',
+		vignette: 0.12,
+		paper: true,
+		lightIntensity: 0.18,
+		roadCase: '#c9a77a',
+		traceCase: '#5a3a22',
+		headIcon: 'car',
+		buildingScale: 0.45,
+	},
+	terrain: {
+		id: 'terrain',
+		label: '山野地形',
+		desc: '真实海拔起伏和山体阴影，轨迹贴着地形走。山城、徒步、骑行路线效果明显，平原城市看不出起伏。',
+		bg: '#e8e2cf',
+		bgRgb: '232,226,207',
+		accent: '#ff5a1f',
+		head: '#ff5a1f',
+		halo: '#ff5a1f',
+		trace: ['rgba(255,90,31,0.65)', '#ff7a3d', '#ff5a1f', '#fff1e6'],
+		ink: '60,70,55',
+		glass: ['250,248,240', '236,232,218'],
+		residential: '#d9ceb2',
+		green: '#b9cf98',
+		water: '#86b9d0',
+		waterEdge: '#5f97b3',
+		waterway: '#79aecb',
+		roadMinor: '#f7f3e8',
+		roadMajor: '#fffaf0',
+		roadGlow: '#b9ab8c',
+		highway: '#ffd27a',
+		rail: '#a89c80',
+		building: ['#ece5d4', '#ddd2ba', '#cbbd9d'],
+		buildingOpacity: 0.95,
+		stopIdle: '#fffaf0',
+		sky: {sky: '#a9cbe0', horizon: '#efe9d8', fog: '#e8e2cf'},
+		light: '#fff6e0',
+		flat: true,
+		text: '#2a3326',
+		shadow: '0 10px 30px rgba(40,50,30,0.25), inset 0 1px 0 rgba(255,255,255,0.6)',
+		vignette: 0.18,
+		lightIntensity: 0.35,
+		roadCase: '#b9ab8c',
+		traceCase: '#ffffff',
+		terrain: {
+			exaggeration: 1.6,
+			shadow: '#5b4a30',
+			highlight: '#fffdf5',
+			relief: [
+				[0, '#c9d6a6'],
+				[200, '#d8dcae'],
+				[400, '#e3d5a3'],
+				[800, '#d6bd8e'],
+				[1500, '#c6ad8c'],
+				[3000, '#eeeae0'],
+			],
+		},
 	},
 };
 
