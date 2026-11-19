@@ -234,28 +234,47 @@ export const RoutePanel: React.FC<{
 };
 
 // ── 风格 ──
-export const StylePanel: React.FC<{s: WorkbenchState; update: Update}> = ({s, update}) => (
-	<Section title="风格">
-		<div className="themes" role="radiogroup" aria-label="主题">
-			{Object.values(THEMES).map((t) => (
-				<button
-					key={t.id}
-					type="button"
-					role="radio"
-					aria-checked={s.theme === t.id}
-					className={`theme ${s.theme === t.id ? 'on' : ''}`}
-					onClick={() => update((st) => ({...st, theme: t.id}))}
-				>
-					<img src={`/themes/${t.id}.jpg`} alt="" loading="lazy" />
-					<span className="theme-name">
-						<i style={{background: t.accent}} />
-						{t.label}
-					</span>
-				</button>
-			))}
-		</div>
-	</Section>
-);
+const THEME_GROUPS = Object.values(THEMES).reduce<{name: string; themes: (typeof THEMES)[string][]}[]>((acc, t) => {
+	const g = acc.find((x) => x.name === t.group);
+	if (g) g.themes.push(t);
+	else acc.push({name: t.group, themes: [t]});
+	return acc;
+}, []);
+
+export const StylePanel: React.FC<{s: WorkbenchState; update: Update}> = ({s, update}) => {
+	const current = THEMES[s.theme];
+	return (
+		<Section title="风格" hint={`${Object.keys(THEMES).length} 套`}>
+			<div role="radiogroup" aria-label="主题" className="theme-groups">
+				{THEME_GROUPS.map((g) => (
+					<div key={g.name} className="theme-group">
+						<div className="theme-group-name">{g.name}</div>
+						<div className="themes">
+							{g.themes.map((t) => (
+								<button
+									key={t.id}
+									type="button"
+									role="radio"
+									aria-checked={s.theme === t.id}
+									title={t.desc}
+									className={`theme ${s.theme === t.id ? 'on' : ''}`}
+									onClick={() => update((st) => ({...st, theme: t.id}))}
+								>
+									<img src={`/themes/${t.id}.jpg`} alt="" loading="lazy" />
+									<span className="theme-name">
+										<i style={{background: t.accent}} />
+										{t.label}
+									</span>
+								</button>
+							))}
+						</div>
+					</div>
+				))}
+			</div>
+			{current ? <p className="muted small theme-desc">{current.desc}</p> : null}
+		</Section>
+	);
+};
 
 // ── 字段 ──
 const TOGGLES: {key: keyof ComponentToggles; label: string}[] = [

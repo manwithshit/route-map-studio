@@ -380,6 +380,12 @@ export const buildStyle = (t: Theme, tl: Timeline): StyleSpecification => {
 		});
 	}
 
+	// 有小车的主题：站名画在车上面，车开到站前不会盖住字
+	if (t.headIcon) {
+		const i = layers.findIndex((l) => l.id === 'stop-label');
+		layers.push(...layers.splice(i, 1));
+	}
+
 	return {
 		version: 8,
 		glyphs: 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf',

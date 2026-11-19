@@ -18,50 +18,137 @@ const applyFrame = (map: MLMap, s: FrameState, elevation?: number) => {
 	map.jumpTo(elevation === undefined ? s.camera : {...s.camera, elevation});
 };
 
-// Q 版小车：俯视、车头朝上，按 2 倍像素画在画布上，渲染时和预览里一样清晰。
+// Q 版小车：俯视、车头朝上，像一张贴纸：白边、深色描边、落地阴影。按 2 倍像素画，渲染时也清晰。
 // 用画布现画而不是加载图片，不需要等网络，每次渲染结果都一样。
 const carImage = (t: Theme) => {
-	const W = 64;
-	const H = 104;
+	const W = 120;
+	const H = 184;
 	const c = document.createElement('canvas');
 	c.width = W;
 	c.height = H;
 	const g = c.getContext('2d')!;
-	const outline = t.traceCase ?? '#3a2a1a';
-	g.lineWidth = 5;
-	g.strokeStyle = outline;
-	// 车轮
-	g.fillStyle = outline;
-	for (const [x, y] of [[6, 20], [W - 16, 20], [6, H - 38], [W - 16, H - 38]]) {
+	const ink = t.traceCase ?? '#4a2e1a';
+	const {body, roof} = t.car ?? {body: t.head, roof: '#ffffff'};
+	const [bx, by, bw, bh, br] = [26, 20, 68, 140, 28];
+	const bodyPath = () => {
 		g.beginPath();
-		g.roundRect(x, y, 10, 20, 4);
-		g.fill();
-	}
-	// 车身
-	g.fillStyle = t.head;
+		g.roundRect(bx, by, bw, bh, [br, br, 22, 22]);
+	};
+	g.lineJoin = 'round';
+	// 落地阴影
+	g.save();
+	g.filter = 'blur(6px)';
+	g.fillStyle = 'rgba(70,45,20,0.32)';
 	g.beginPath();
-	g.roundRect(10, 6, W - 20, H - 12, 18);
+	g.roundRect(bx + 6, by + 14, bw, bh, br);
 	g.fill();
+	g.restore();
+	// 车轮，从车身两侧露出来
+	g.fillStyle = ink;
+	for (const y of [42, 120]) {
+		for (const x of [bx - 8, bx + bw - 6]) {
+			g.beginPath();
+			g.roundRect(x, y, 14, 30, 6);
+			g.fill();
+		}
+	}
+	// 白边 → 描边 → 车身 → 高光
+	bodyPath();
+	g.strokeStyle = '#ffffff';
+	g.lineWidth = 14;
 	g.stroke();
-	// 前挡风玻璃和车顶
-	g.fillStyle = '#e8f6ff';
+	bodyPath();
+	g.strokeStyle = ink;
+	g.lineWidth = 5;
+	g.stroke();
+	bodyPath();
+	g.fillStyle = body;
+	g.fill();
+	g.save();
+	bodyPath();
+	g.clip();
+	g.fillStyle = 'rgba(255,255,255,0.28)';
 	g.beginPath();
-	g.roundRect(17, 22, W - 34, 18, 6);
+	g.roundRect(bx + 8, by + 6, 14, bh - 20, 7);
+	g.fill();
+	g.restore();
+	// 前挡风玻璃和反光
+	g.beginPath();
+	g.moveTo(bx + 12, by + 48);
+	g.lineTo(bx + bw - 12, by + 48);
+	g.lineTo(bx + bw - 7, by + 70);
+	g.lineTo(bx + 7, by + 70);
+	g.closePath();
+	g.fillStyle = '#d9f3ff';
+	g.fill();
+	g.strokeStyle = ink;
+	g.lineWidth = 3.5;
+	g.stroke();
+	g.fillStyle = 'rgba(255,255,255,0.8)';
+	g.beginPath();
+	g.moveTo(bx + 18, by + 52);
+	g.lineTo(bx + 28, by + 52);
+	g.lineTo(bx + 22, by + 66);
+	g.lineTo(bx + 13, by + 66);
+	g.closePath();
+	g.fill();
+	// 车顶、后窗
+	g.beginPath();
+	g.roundRect(bx + 8, by + 74, bw - 16, 40, 10);
+	g.fillStyle = roof;
+	g.fill();
+	g.strokeStyle = ink;
+	g.lineWidth = 3.5;
+	g.stroke();
+	g.beginPath();
+	g.roundRect(bx + 11, by + 118, bw - 22, 12, 5);
+	g.fillStyle = '#d9f3ff';
 	g.fill();
 	g.lineWidth = 3;
 	g.stroke();
-	g.fillStyle = 'rgba(255,255,255,0.55)';
-	g.beginPath();
-	g.roundRect(17, 46, W - 34, 30, 8);
-	g.fill();
-	// 车灯
-	g.fillStyle = '#fff6c2';
-	for (const x of [16, W - 24]) {
+	// 前灯、尾灯、后视镜
+	for (const x of [bx + 15, bx + bw - 15]) {
 		g.beginPath();
-		g.arc(x + 4, 12, 4, 0, Math.PI * 2);
+		g.arc(x, by + 14, 7, 0, Math.PI * 2);
+		g.fillStyle = '#fff3a8';
+		g.fill();
+		g.stroke();
+	}
+	g.fillStyle = '#ff4d4d';
+	for (const x of [bx + 10, bx + bw - 22]) {
+		g.beginPath();
+		g.roundRect(x, by + bh - 9, 12, 6, 3);
 		g.fill();
 	}
+	g.fillStyle = body;
+	for (const x of [bx - 7, bx + bw - 3]) {
+		g.beginPath();
+		g.ellipse(x + 5, by + 58, 6, 4.5, 0, 0, Math.PI * 2);
+		g.fill();
+		g.stroke();
+	}
 	return g.getImageData(0, 0, W, H);
+};
+
+// 移轴效果：上下两条带子做背景模糊，中间清晰，像微缩模型照片
+const TiltShift: React.FC<{width: number; height: number}> = ({width, height}) => {
+	const band = (top: boolean): React.CSSProperties => ({
+		position: 'absolute',
+		left: 0,
+		width,
+		height: height * 0.3,
+		[top ? 'top' : 'bottom']: 0,
+		backdropFilter: 'blur(7px) saturate(115%)',
+		WebkitBackdropFilter: 'blur(7px) saturate(115%)',
+		maskImage: `linear-gradient(${top ? '180deg' : '0deg'}, #000 25%, transparent 100%)`,
+		WebkitMaskImage: `linear-gradient(${top ? '180deg' : '0deg'}, #000 25%, transparent 100%)`,
+	});
+	return (
+		<>
+			<div style={band(true)} />
+			<div style={band(false)} />
+		</>
+	);
 };
 
 // 地图层。主题、路线或画幅变化时由父组件换 key 重建。
@@ -131,6 +218,7 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 	return (
 		<>
 			<div ref={containerRef} style={{position: 'absolute', width: tl.layout.width, height: tl.layout.height}} />
+			{theme.tiltShift ? <TiltShift width={tl.layout.width} height={tl.layout.height} /> : null}
 			{/* 只在工作台预览里提示：换主题、画幅或路线时地图要重建，加载瓦片需要一两秒 */}
 			{!map && !getRemotionEnvironment().isRendering ? (
 				<AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', background: 'rgba(0,0,0,0.35)'}}>

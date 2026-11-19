@@ -170,6 +170,29 @@ describe('卡通和地形风格', async () => {
 		expect(l).toContain('trace-case');
 		for (const glow of ['trace-halo', 'trace-glow', 'flow-glow', 'road-major-glow', 'head-glow', 'head-ring']) expect(l).not.toContain(glow);
 	});
+	it('每套风格都有分组、说明和缩略图', async () => {
+		const {existsSync} = await import('node:fs');
+		for (const t of Object.values(THEMES)) {
+			expect(t.group, t.id).toBeTruthy();
+			expect(t.desc.length, t.id).toBeGreaterThan(8);
+			expect(existsSync(`public/themes/${t.id}.jpg`), t.id).toBe(true);
+		}
+		expect(Object.keys(THEMES).length).toBeGreaterThanOrEqual(10);
+	});
+	it('有小车的风格，站名画在小车上面', () => {
+		for (const id of ['toon', 'mini']) {
+			const l = ids(id);
+			expect(l.indexOf('stop-label'), id).toBeGreaterThan(l.indexOf('head-car'));
+		}
+	});
+	it('浅色风格都不画发光，主文字是深色', () => {
+		for (const t of Object.values(THEMES).filter((x) => x.flat)) {
+			expect(ids(t.id), t.id).not.toContain('trace-halo');
+			const n = parseInt(t.text!.slice(1), 16);
+			const luma = 0.2126 * (n >> 16) + 0.7152 * ((n >> 8) & 255) + 0.0722 * (n & 255);
+			expect(luma, t.id).toBeLessThan(80);
+		}
+	});
 	it('地形风格带海拔和山体阴影', () => {
 		const style = buildStyle(THEMES.terrain, getTimeline({...sampleConfig('chongqing'), theme: 'terrain'}));
 		expect(style.terrain?.source).toBe('dem');
