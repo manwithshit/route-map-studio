@@ -212,6 +212,7 @@ export const App: React.FC = () => {
 				<KeyGate
 					current={key.hasKey ? key.masked : undefined}
 					onCancel={key.hasKey ? () => setGate(false) : undefined}
+					onCleared={() => setKey({...key, hasKey: false, masked: ''})}
 					onDone={(masked) => {
 						setKey({...key, hasKey: true, masked});
 						setGate(false);

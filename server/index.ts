@@ -7,7 +7,7 @@ import {createServer as createViteServer} from 'vite';
 import {AmapError, inputTips, testKey} from './amap';
 import {getJob, OUTPUT_DIR, startRender} from './render';
 import {fetchRoute} from './routing';
-import {getAmapKey, maskKey, setAmapKey} from './store';
+import {clearAmapKey, getAmapKey, maskKey, setAmapKey} from './store';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const PORT = Number(process.env.PORT) || 5317;
@@ -34,6 +34,15 @@ export const createApp = async (opts: {withUi?: boolean} = {}) => {
 		} catch (e) {
 			res.status(400).json({error: e instanceof Error ? e.message : String(e)});
 		}
+	});
+
+	app.delete('/api/key', (_req, res) => {
+		if (process.env.AMAP_WEB_KEY) {
+			res.status(409).json({error: 'Key 来自环境变量 AMAP_WEB_KEY，网页里删不掉。去掉这个环境变量后重启服务。'});
+			return;
+		}
+		clearAmapKey();
+		res.json({ok: true});
 	});
 
 	app.get('/api/search', async (req, res) => {

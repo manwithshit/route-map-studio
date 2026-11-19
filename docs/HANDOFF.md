@@ -85,6 +85,13 @@
 
 两条成片 `~/Desktop/成都路线_黑金夜景.mp4` 和 `~/Desktop/重庆两江环线_全息线框.mp4`，用的是 `/tmp/remotion-map-test` 里的旧代码。工作台的“载入示例”能还原这两条路线；画面算法也一样，只多了地标卡交接时错开出场等小改动。`/tmp` 重启后会被清空，以后以这个仓库为准。
 
+## v0.1.5 删除 Key 的入口（2026-11-19）
+
+- 点右上角「高德 Key」打开弹窗，已保存 Key 时会显示打码后的 Key 和「删除这个 Key」。点了要再确认一次，确认后调用 `DELETE /api/key`。
+- 服务端只删 `config.local.json` 里的 `amapKey`；文件里没有别的配置时连文件一起删。Key 来自环境变量 `AMAP_WEB_KEY` 时返回 409 并说明原因，不动文件。
+- 删除后弹窗回到首次填写状态（没有取消按钮），顶栏显示“未填写”，搜索接口返回 401。用途：演示首次填 Key、在别人电脑上用完清掉。
+- 测试：浏览器脚本 11 项（显示、确认、取消、删文件、回到首次状态、刷新后仍要填、搜索 401）；接口测了重新填回、只删 Key 保留其他字段、环境变量 409。
+
 ## v0.1.4 一键安装和 README（2026-11-17）
 
 - **`install.sh`**：`curl -fsSL https://raw.githubusercontent.com/manwithshit/route-map-studio/main/install.sh | bash`。检查 macOS + Apple 芯片、git、Node ≥20；没有 pnpm 时用 `npx --yes pnpm@10`；已装过就 `git pull --ff-only` 更新；目录被别的东西占了就报错退出；装完自动启动。脚本整体包在 `main()` 里，防止下载中断时只执行半截。环境变量：`ROUTE_MAP_DIR`、`ROUTE_MAP_REPO`、`NO_START=1`、`PORT`。

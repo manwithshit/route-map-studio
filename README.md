@@ -49,7 +49,7 @@ pnpm start
 2. 给应用添加 Key，**服务平台选「Web服务」**。选成「Web端（JS API）」的 Key 搜不了地点，工作台会提示 `Key 类型不对`。
 3. 只复制「Key」那一列的 32 位字符，安全密钥不用填。
 
-Key 只保存在你电脑上的 `config.local.json`，不会上传。
+Key 只保存在你电脑上的 `config.local.json`，不会上传。要换 Key 或删掉它，点工作台右上角的「高德 Key」按钮。
 
 ## 6 套风格
 

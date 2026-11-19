@@ -4,10 +4,16 @@ import {api} from './api';
 
 const CONSOLE_URL = 'https://console.amap.com/dev/key/app';
 
-export const KeyGate: React.FC<{onDone: (masked: string) => void; onCancel?: () => void; current?: string}> = ({onDone, onCancel, current}) => {
+export const KeyGate: React.FC<{onDone: (masked: string) => void; onCancel?: () => void; onCleared: () => void; current?: string}> = ({
+	onDone,
+	onCancel,
+	onCleared,
+	current,
+}) => {
 	const [key, setKey] = useState('');
 	const [busy, setBusy] = useState(false);
 	const [error, setError] = useState('');
+	const [confirming, setConfirming] = useState(false);
 
 	const submit = async (e: React.FormEvent) => {
 		e.preventDefault();
@@ -16,6 +22,20 @@ export const KeyGate: React.FC<{onDone: (masked: string) => void; onCancel?: () 
 		try {
 			const r = await api.saveKey(key.trim());
 			onDone(r.keyMasked);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : String(err));
+		} finally {
+			setBusy(false);
+		}
+	};
+
+	const clear = async () => {
+		setBusy(true);
+		setError('');
+		try {
+			await api.deleteKey();
+			setConfirming(false);
+			onCleared();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : String(err));
 		} finally {
@@ -53,6 +73,30 @@ export const KeyGate: React.FC<{onDone: (masked: string) => void; onCancel?: () 
 						autoComplete="off"
 					/>
 				</label>
+				{current ? (
+					<div className="key-saved">
+						{confirming ? (
+							<>
+								<span>删掉后要重新填 Key 才能搜地点。</span>
+								<button type="button" className="text-btn danger" onClick={clear} disabled={busy}>
+									确认删除
+								</button>
+								<button type="button" className="text-btn" onClick={() => setConfirming(false)} disabled={busy}>
+									算了
+								</button>
+							</>
+						) : (
+							<>
+								<span>
+									这台电脑上保存的 Key：<code>{current}</code>
+								</span>
+								<button type="button" className="text-btn danger" onClick={() => setConfirming(true)}>
+									删除这个 Key
+								</button>
+							</>
+						)}
+					</div>
+				) : null}
 				{error ? <div className="alert error">{error}</div> : null}
 				<div className="row end">
 					{onCancel ? (

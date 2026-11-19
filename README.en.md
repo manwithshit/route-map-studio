@@ -49,7 +49,7 @@ The workbench asks for an **Amap (高德) Web Service key** for place search. Ev
 2. Add a key and choose the **「Web服务」(Web Service)** platform. A 「Web端」(JS API) key cannot call place search; the workbench will say the key type is wrong.
 3. Copy only the 32-character key. The security code is not needed.
 
-The key is stored only in `config.local.json` on your machine.
+The key is stored only in `config.local.json` on your machine. To change or delete it, click the 「高德 Key」 button at the top right of the workbench.
 
 ## Six themes
 

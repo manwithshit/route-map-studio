@@ -14,6 +14,7 @@ const call = async <T,>(url: string, init?: RequestInit): Promise<T> => {
 export const api = {
 	config: () => call<{hasKey: boolean; keyMasked: string; outputDir: string}>('/api/config'),
 	saveKey: (key: string) => call<{ok: true; keyMasked: string}>('/api/key', {method: 'POST', body: JSON.stringify({key})}),
+	deleteKey: () => call<{ok: true}>('/api/key', {method: 'DELETE'}),
 	search: (q: string, city: string, signal?: AbortSignal) =>
 		call<{places: Place[]}>(`/api/search?${new URLSearchParams({q, city})}`, {signal}).then((d) => d.places),
 	route: (points: LngLat[]) => call<RouteResult>('/api/route', {method: 'POST', body: JSON.stringify({points})}),
