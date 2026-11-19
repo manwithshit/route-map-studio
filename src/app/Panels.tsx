@@ -53,7 +53,19 @@ export const RoutePanel: React.FC<{
 	onKeyError: (m: string) => void;
 }> = ({s, update, routing, routeError, conflict, issues, onKeyError}) => {
 	const [dragging, setDragging] = useState<string | null>(null);
+	const [cityNote, setCityNote] = useState('');
 	const vias = s.points.filter((p) => p.role === 'via');
+
+	// 改完城市（离开输入框或回车）时，如果已选的点在别的城市，就清掉路线重选。
+	// 不清的话，旧城市的点会把搜索锁在旧城市，新城市的候选全是灰的。
+	const commitCity = () => {
+		const want = s.city.trim().replace(/市$/, '');
+		const had = lockedCity(s.points, '');
+		const old = had?.name.replace(/市$/, '') ?? '';
+		if (!want || !had || old.startsWith(want) || want.startsWith(old)) return;
+		update((st) => clearedRoute(st));
+		setCityNote(`已换到${want}，原来${old}的路线点清掉了，重新选起点和终点就行。`);
+	};
 
 	const setPoint = (uid: string, fn: (p: RoutePoint) => RoutePoint) =>
 		update((st) => ({...st, points: st.points.map((p) => (p.uid === uid ? fn(p) : p))}));
@@ -178,8 +190,21 @@ export const RoutePanel: React.FC<{
 		<Section title="路线" hint="选好点自动算路">
 			<label className="field">
 				<span>城市</span>
-				<input id="city" value={s.city} onChange={(e) => update((st) => ({...st, city: e.target.value}))} placeholder="例如：成都" />
+				<input
+					id="city"
+					value={s.city}
+					onChange={(e) => {
+						setCityNote('');
+						update((st) => ({...st, city: e.target.value}));
+					}}
+					onBlur={commitCity}
+					onKeyDown={(e) => {
+						if (e.key === 'Enter') commitCity();
+					}}
+					placeholder="例如：成都"
+				/>
 			</label>
+			{cityNote ? <p className="muted small city-note">{cityNote}</p> : null}
 			<div className="points">
 				{row(s.points[0], '起点')}
 				{vias.map((v, i) =>

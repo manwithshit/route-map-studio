@@ -531,6 +531,9 @@ input[type='checkbox'] {
 }
 
 /* 主题 */
+.city-note {
+	margin: -4px 0 8px;
+}
 .theme-groups {
 	display: flex;
 	flex-direction: column;

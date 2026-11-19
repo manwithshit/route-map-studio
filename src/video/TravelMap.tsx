@@ -151,13 +151,22 @@ const TiltShift: React.FC<{width: number; height: number}> = ({width, height}) =
 	);
 };
 
-// 地图层。主题、路线或画幅变化时由父组件换 key 重建。
+// 地图层。路线或画幅变化时由父组件换 key 重建；换主题只换样式，不重建地图。
 const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: number}> = ({theme, tl, state, frame}) => {
 	const containerRef = useRef<HTMLDivElement>(null);
 	const [map, setMap] = useState<MLMap | null>(null);
 	// 地形主题：镜头中心高度固定成起点的地面高度。跟着地面逐帧变会让画面上下抖，
 	// 因为海拔在瓦片里是分块采样的，相邻两帧取到的高度会跳。
 	const elevation = useRef<number | undefined>(undefined);
+	const themeRef = useRef(theme);
+	themeRef.current = theme;
+	const stateRef = useRef(state);
+	stateRef.current = state;
+	// 地形主题：地图画完一轮后取起点地面高度，之后每帧固定用它
+	const fixElevation = (m: MLMap, t: Theme) => {
+		elevation.current = t.terrain ? (m.queryTerrainElevation(tl.route.geometry.coordinates[0] as [number, number]) ?? 0) : undefined;
+		applyFrame(m, stateRef.current, elevation.current);
+	};
 	const [loadHandle] = useState(() => delayRender('Loading MapLibre', {timeoutInMilliseconds: 90000}));
 
 	useEffect(() => {
@@ -180,7 +189,8 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 		});
 		// 样式里用到小车图标时由地图来要，按需画一次
 		instance.on('styleimagemissing', (e) => {
-			if (theme.headIcon && e.id === theme.headIcon && !instance.hasImage(e.id)) instance.addImage(e.id, carImage(theme), {pixelRatio: 2});
+			const t = themeRef.current;
+			if (t.headIcon && e.id === t.headIcon && !instance.hasImage(e.id)) instance.addImage(e.id, carImage(t), {pixelRatio: 2});
 		});
 		instance.on('load', () => {
 			applyFrame(instance, s0);
@@ -190,8 +200,7 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 					continueRender(loadHandle);
 				};
 				if (!theme.terrain) return ready();
-				elevation.current = instance.queryTerrainElevation(tl.route.geometry.coordinates[0] as [number, number]) ?? 0;
-				applyFrame(instance, s0, elevation.current);
+				fixElevation(instance, theme);
 				instance.once('idle', ready);
 			});
 		});
@@ -202,6 +211,26 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [loadHandle]);
+
+	// 换主题：在同一个地图上换样式。瓦片、WebGL 上下文都留着，只有新画法的着色器要编译，
+	// 比整个重建快得多（重建时每次都要重新建上下文、重新下载瓦片，预览会卡一秒左右）。
+	const [restyling, setRestyling] = useState(false);
+	const shownTheme = useRef(theme);
+	useEffect(() => {
+		if (!map || shownTheme.current === theme) return;
+		shownTheme.current = theme;
+		if (theme.headIcon && map.hasImage(theme.headIcon)) map.removeImage(theme.headIcon); // 小车颜色跟主题走，换主题后重画
+		map.setCenterClampedToGround(!theme.terrain);
+		elevation.current = undefined;
+		map.setStyle(buildStyle(theme, tl), {diff: true});
+		applyFrame(map, stateRef.current);
+		setRestyling(Boolean(theme.terrain));
+		map.once('idle', () => {
+			fixElevation(map, theme);
+			setRestyling(false);
+		});
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [map, theme]);
 
 	useEffect(() => {
 		if (!map) return;
@@ -220,7 +249,7 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 			<div ref={containerRef} style={{position: 'absolute', width: tl.layout.width, height: tl.layout.height}} />
 			{theme.tiltShift ? <TiltShift width={tl.layout.width} height={tl.layout.height} /> : null}
 			{/* 只在工作台预览里提示：换主题、画幅或路线时地图要重建，加载瓦片需要一两秒 */}
-			{!map && !getRemotionEnvironment().isRendering ? (
+			{(!map || restyling) && !getRemotionEnvironment().isRendering ? (
 				<AbsoluteFill style={{justifyContent: 'center', alignItems: 'center', background: 'rgba(0,0,0,0.35)'}}>
 					<div style={{padding: '18px 36px', borderRadius: 999, background: 'rgba(0,0,0,0.7)', color: '#fff', fontSize: tl.layout.width / 28, fontFamily: '"PingFang SC", sans-serif'}}>
 						地图加载中…
@@ -240,8 +269,8 @@ export const TravelMap: React.FC<VideoConfig> = (cfg) => {
 	const tl = useMemo(() => ({...cached, cfg: {...cached.cfg, texts: cfg.texts, show: cfg.show}}), [cached, cfg.texts, cfg.show]);
 	const state = useMemo(() => cached.getFrameState(frame), [cached, frame]);
 	const ctx = useMemo(() => ({theme, tl}), [theme, tl]);
-	// 只有影响底图样式的项（主题、画幅、路线）才重建地图；拖时长、镜头滑块不重建
-	const mapKey = `${cfg.theme}|${cfg.aspect}|${cfg.route.distanceMeters}|${cfg.route.coordinates.length}`;
+	// 只有画幅、路线变化才重建地图；换主题在原地图上换样式，拖时长、镜头滑块都不重建
+	const mapKey = `${cfg.aspect}|${cfg.route.distanceMeters}|${cfg.route.coordinates.length}`;
 
 	return (
 		<SceneContext.Provider value={ctx}>
