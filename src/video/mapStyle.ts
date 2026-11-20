@@ -27,7 +27,7 @@ const gridLines = (route: Timeline['route']) => {
 export const buildStyle = (t: Theme, tl: Timeline): StyleSpecification => {
 	const lit = ['==', ['get', 'lit'], 1] as any;
 	const text = t.text ?? '#ffffff';
-	const off = t.headIcon ? 1.7 : 0.9;
+	const off = t.headIcon ? 3.6 : 0.9; // 有小车时站名推开一个车身，车开到站不压字
 	const layers: LayerSpecification[] = [
 		{id: 'bg', type: 'background', paint: {'background-color': t.bg}},
 		// 地形：先按海拔铺底色，后面的绿地、水面盖在上面
@@ -322,12 +322,10 @@ export const buildStyle = (t: Theme, tl: Timeline): StyleSpecification => {
 				'text-halo-width': 2.5,
 			},
 		},
-		// ── 车头：贴地呼吸波纹 + 发光核心 ──
 	);
-	// 车头呼吸波纹：小车主题不画，车本身就够醒目
+	// ── 车头：贴地呼吸波纹 + 发光核心。有小车的主题由 TravelMap 加的 3D 图层来画（carLayer.ts）──
 	if (!t.headIcon) {
-		layers.push(
-		{
+		layers.push({
 			id: 'head-ring',
 			type: 'circle',
 			source: 'head',
@@ -341,27 +339,7 @@ export const buildStyle = (t: Theme, tl: Timeline): StyleSpecification => {
 				'circle-opacity': ['get', 'ro'],
 				'circle-pitch-alignment': 'map',
 			},
-		}
-		);
-	}
-	if (t.headIcon) {
-		// Q 版小车：贴地放，车头朝向取自时间轴里平滑过的行进方向
-		layers.push({
-			id: 'head-car',
-			type: 'symbol',
-			source: 'head',
-			filter: ['==', ['get', 'kind'], 'core'],
-			layout: {
-				'icon-image': t.headIcon,
-				'icon-size': 2.2,
-				'icon-rotate': ['get', 'hd'],
-				'icon-rotation-alignment': 'map',
-				'icon-pitch-alignment': 'map',
-				'icon-allow-overlap': true,
-				'icon-ignore-placement': true,
-			},
 		});
-	} else {
 		if (!t.flat) {
 			layers.push({
 				id: 'head-glow',
@@ -380,7 +358,7 @@ export const buildStyle = (t: Theme, tl: Timeline): StyleSpecification => {
 		});
 	}
 
-	// 有小车的主题：站名画在车上面，车开到站前不会盖住字
+	// 有小车的主题：站名放到最上面，3D 小车插在它下面，车开到站前不会盖住字
 	if (t.headIcon) {
 		const i = layers.findIndex((l) => l.id === 'stop-label');
 		layers.push(...layers.splice(i, 1));

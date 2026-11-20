@@ -166,7 +166,8 @@ describe('卡通和地形风格', async () => {
 	});
 	it('卡通不画发光，车头换成小车', () => {
 		const l = ids('toon');
-		expect(l).toContain('head-car');
+		expect(THEMES.toon.headIcon).toBe('car');
+		expect(l).not.toContain('head-core'); // 车头由 3D 小车图层画
 		expect(l).toContain('trace-case');
 		for (const glow of ['trace-halo', 'trace-glow', 'flow-glow', 'road-major-glow', 'head-glow', 'head-ring']) expect(l).not.toContain(glow);
 	});
@@ -179,10 +180,10 @@ describe('卡通和地形风格', async () => {
 		}
 		expect(Object.keys(THEMES).length).toBeGreaterThanOrEqual(10);
 	});
-	it('有小车的风格，站名画在小车上面', () => {
+	it('有小车的风格，站名在最上层（3D 小车插在它下面）', () => {
 		for (const id of ['toon', 'mini']) {
 			const l = ids(id);
-			expect(l.indexOf('stop-label'), id).toBeGreaterThan(l.indexOf('head-car'));
+			expect(l.at(-1), id).toBe('stop-label');
 		}
 	});
 	it('浅色风格都不画发光，主文字是深色', () => {
@@ -205,7 +206,7 @@ describe('卡通和地形风格', async () => {
 			let prev: number | null = null;
 			let worst = 0;
 			for (let f = 0; f < Math.round(tl.cfg.durationS * 60); f++) {
-				const hd = tl.getFrameState(f).headFc.features.find((x) => x.properties?.kind === 'core')!.properties!.hd as number;
+				const hd = tl.getFrameState(f).heading;
 				if (prev !== null) worst = Math.max(worst, Math.abs(hd - prev));
 				prev = hd;
 			}

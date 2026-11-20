@@ -102,7 +102,14 @@ export const createApp = async (opts: {withUi?: boolean} = {}) => {
 	});
 
 	if (opts.withUi !== false) {
-		const vite = await createViteServer({root: ROOT, server: {middlewareMode: true}, appType: 'spa'});
+		const vite = await createViteServer({
+			root: ROOT,
+			server: {middlewareMode: true},
+			appType: 'spa',
+			// 3D 小车只在卡通、微缩风格才用到。启动时就打包好 three.js，否则第一次切到这两套风格时
+			// Vite 才发现新依赖，会重新打包并整页刷新
+			optimizeDeps: {include: ['three', 'three/examples/jsm/loaders/GLTFLoader.js']},
+		});
 		app.use(vite.middlewares);
 	}
 	return app;

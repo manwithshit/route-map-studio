@@ -4,130 +4,20 @@ import {Map as MLMap, type GeoJSONSource} from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {FPS, outFps, type VideoConfig} from './config';
 import {Hud, SceneContext} from './Hud';
+import {CAR_LAYER_ID, createCarLayer, loadCarModel, type CarLayer} from './carLayer';
 import {buildStyle} from './mapStyle';
 import {getTheme} from './themes';
 import {getTimeline, type FrameState, type Timeline} from './timeline';
 import type {Theme} from './themes';
 
-const applyFrame = (map: MLMap, s: FrameState, elevation?: number) => {
+const applyFrame = (map: MLMap, s: FrameState, elevation?: number, car?: CarLayer | null) => {
+	car?.setPose(s.head, s.heading);
 	(map.getSource('trace') as GeoJSONSource).setData(s.trace);
 	(map.getSource('flow') as GeoJSONSource).setData(s.flow);
 	(map.getSource('head') as GeoJSONSource).setData(s.headFc);
 	(map.getSource('stops') as GeoJSONSource).setData(s.stopsFc);
 	// jumpTo 无补间：相机严格落在本帧计算值上
 	map.jumpTo(elevation === undefined ? s.camera : {...s.camera, elevation});
-};
-
-// Q 版小车：俯视、车头朝上，像一张贴纸：白边、深色描边、落地阴影。按 2 倍像素画，渲染时也清晰。
-// 用画布现画而不是加载图片，不需要等网络，每次渲染结果都一样。
-const carImage = (t: Theme) => {
-	const W = 120;
-	const H = 184;
-	const c = document.createElement('canvas');
-	c.width = W;
-	c.height = H;
-	const g = c.getContext('2d')!;
-	const ink = t.traceCase ?? '#4a2e1a';
-	const {body, roof} = t.car ?? {body: t.head, roof: '#ffffff'};
-	const [bx, by, bw, bh, br] = [26, 20, 68, 140, 28];
-	const bodyPath = () => {
-		g.beginPath();
-		g.roundRect(bx, by, bw, bh, [br, br, 22, 22]);
-	};
-	g.lineJoin = 'round';
-	// 落地阴影
-	g.save();
-	g.filter = 'blur(6px)';
-	g.fillStyle = 'rgba(70,45,20,0.32)';
-	g.beginPath();
-	g.roundRect(bx + 6, by + 14, bw, bh, br);
-	g.fill();
-	g.restore();
-	// 车轮，从车身两侧露出来
-	g.fillStyle = ink;
-	for (const y of [42, 120]) {
-		for (const x of [bx - 8, bx + bw - 6]) {
-			g.beginPath();
-			g.roundRect(x, y, 14, 30, 6);
-			g.fill();
-		}
-	}
-	// 白边 → 描边 → 车身 → 高光
-	bodyPath();
-	g.strokeStyle = '#ffffff';
-	g.lineWidth = 14;
-	g.stroke();
-	bodyPath();
-	g.strokeStyle = ink;
-	g.lineWidth = 5;
-	g.stroke();
-	bodyPath();
-	g.fillStyle = body;
-	g.fill();
-	g.save();
-	bodyPath();
-	g.clip();
-	g.fillStyle = 'rgba(255,255,255,0.28)';
-	g.beginPath();
-	g.roundRect(bx + 8, by + 6, 14, bh - 20, 7);
-	g.fill();
-	g.restore();
-	// 前挡风玻璃和反光
-	g.beginPath();
-	g.moveTo(bx + 12, by + 48);
-	g.lineTo(bx + bw - 12, by + 48);
-	g.lineTo(bx + bw - 7, by + 70);
-	g.lineTo(bx + 7, by + 70);
-	g.closePath();
-	g.fillStyle = '#d9f3ff';
-	g.fill();
-	g.strokeStyle = ink;
-	g.lineWidth = 3.5;
-	g.stroke();
-	g.fillStyle = 'rgba(255,255,255,0.8)';
-	g.beginPath();
-	g.moveTo(bx + 18, by + 52);
-	g.lineTo(bx + 28, by + 52);
-	g.lineTo(bx + 22, by + 66);
-	g.lineTo(bx + 13, by + 66);
-	g.closePath();
-	g.fill();
-	// 车顶、后窗
-	g.beginPath();
-	g.roundRect(bx + 8, by + 74, bw - 16, 40, 10);
-	g.fillStyle = roof;
-	g.fill();
-	g.strokeStyle = ink;
-	g.lineWidth = 3.5;
-	g.stroke();
-	g.beginPath();
-	g.roundRect(bx + 11, by + 118, bw - 22, 12, 5);
-	g.fillStyle = '#d9f3ff';
-	g.fill();
-	g.lineWidth = 3;
-	g.stroke();
-	// 前灯、尾灯、后视镜
-	for (const x of [bx + 15, bx + bw - 15]) {
-		g.beginPath();
-		g.arc(x, by + 14, 7, 0, Math.PI * 2);
-		g.fillStyle = '#fff3a8';
-		g.fill();
-		g.stroke();
-	}
-	g.fillStyle = '#ff4d4d';
-	for (const x of [bx + 10, bx + bw - 22]) {
-		g.beginPath();
-		g.roundRect(x, by + bh - 9, 12, 6, 3);
-		g.fill();
-	}
-	g.fillStyle = body;
-	for (const x of [bx - 7, bx + bw - 3]) {
-		g.beginPath();
-		g.ellipse(x + 5, by + 58, 6, 4.5, 0, 0, Math.PI * 2);
-		g.fill();
-		g.stroke();
-	}
-	return g.getImageData(0, 0, W, H);
 };
 
 // 移轴效果：上下两条带子做背景模糊，中间清晰，像微缩模型照片
@@ -162,10 +52,24 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 	themeRef.current = theme;
 	const stateRef = useRef(state);
 	stateRef.current = state;
+	const carRef = useRef<CarLayer | null>(null);
+	// 主题要小车就加 3D 小车图层，不要就拿掉。图层放在站名下面
+	const syncCar = (m: MLMap, t: Theme, model?: Awaited<ReturnType<typeof loadCarModel>>) => {
+		const has = Boolean(m.getLayer(CAR_LAYER_ID));
+		if (t.headIcon && !has && model) {
+			carRef.current = createCarLayer(model);
+			m.addLayer(carRef.current, m.getLayer('stop-label') ? 'stop-label' : undefined);
+		} else if (!t.headIcon) {
+			if (has) m.removeLayer(CAR_LAYER_ID);
+			carRef.current = null;
+		} else if (has && m.getLayer('stop-label')) {
+			m.moveLayer(CAR_LAYER_ID, 'stop-label');
+		}
+	};
 	// 地形主题：地图画完一轮后取起点地面高度，之后每帧固定用它
 	const fixElevation = (m: MLMap, t: Theme) => {
 		elevation.current = t.terrain ? (m.queryTerrainElevation(tl.route.geometry.coordinates[0] as [number, number]) ?? 0) : undefined;
-		applyFrame(m, stateRef.current, elevation.current);
+		applyFrame(m, stateRef.current, elevation.current, carRef.current);
 	};
 	const [loadHandle] = useState(() => delayRender('Loading MapLibre', {timeoutInMilliseconds: 90000}));
 
@@ -187,13 +91,10 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 			localIdeographFontFamily: '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
 			canvasContextAttributes: {preserveDrawingBuffer: true, antialias: true},
 		});
-		// 样式里用到小车图标时由地图来要，按需画一次
-		instance.on('styleimagemissing', (e) => {
-			const t = themeRef.current;
-			if (t.headIcon && e.id === t.headIcon && !instance.hasImage(e.id)) instance.addImage(e.id, carImage(t), {pixelRatio: 2});
-		});
-		instance.on('load', () => {
-			applyFrame(instance, s0);
+		instance.on('load', async () => {
+			// 渲染时必须等模型加载完、加进地图，再放行第一帧
+			if (theme.headIcon) syncCar(instance, theme, await loadCarModel());
+			applyFrame(instance, s0, undefined, carRef.current);
 			instance.once('idle', () => {
 				const ready = () => {
 					setMap(instance);
@@ -219,11 +120,15 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 	useEffect(() => {
 		if (!map || shownTheme.current === theme) return;
 		shownTheme.current = theme;
-		if (theme.headIcon && map.hasImage(theme.headIcon)) map.removeImage(theme.headIcon); // 小车颜色跟主题走，换主题后重画
 		map.setCenterClampedToGround(!theme.terrain);
 		elevation.current = undefined;
 		map.setStyle(buildStyle(theme, tl), {diff: true});
-		applyFrame(map, stateRef.current);
+		syncCar(map, theme);
+		if (theme.headIcon) loadCarModel().then((model) => {
+			syncCar(map, theme, model);
+			applyFrame(map, stateRef.current, elevation.current, carRef.current);
+		});
+		applyFrame(map, stateRef.current, undefined, carRef.current);
 		setRestyling(Boolean(theme.terrain));
 		map.once('idle', () => {
 			fixElevation(map, theme);
@@ -234,7 +139,7 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 
 	useEffect(() => {
 		if (!map) return;
-		applyFrame(map, state, elevation.current);
+		applyFrame(map, state, elevation.current, carRef.current);
 		// 只在渲染时等瓦片、GeoJSON 轨迹和相机全部画完才放行截图。
 		// 预览（Player）里不能这样做：连续播放时地图几乎不会进入 idle，每帧登记的
 		// delayRender 句柄和 idle 监听会以 60 个/秒堆积，几分钟后一次性触发，整页卡死数十秒。

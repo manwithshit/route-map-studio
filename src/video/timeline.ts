@@ -35,6 +35,7 @@ export type FrameState = {
 	trace: LineFeature;
 	flow: LineCollection;
 	headFc: PointCollection;
+	heading: number; // 车头朝向（度，从正北顺时针），3D 小车用
 	stopsFc: PointCollection;
 	speedKmh: number;
 	tripSeconds: number;
@@ -354,6 +355,7 @@ const buildTimeline = (cfg: VideoConfig) => {
 			trace,
 			flow: flowAt(t, km) as LineCollection,
 			headFc,
+			heading: HEAD_YAW[fi],
 			stopsFc,
 			speedKmh: AVG_SPEED_KMH * travelVelocity(t),
 			tripSeconds: (km / AVG_SPEED_KMH) * 3600,

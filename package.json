@@ -29,7 +29,8 @@
     "pinyin-pro": "^3.29.5",
     "react": "18.3.1",
     "react-dom": "18.3.1",
-    "remotion": "4.0.245"
+    "remotion": "4.0.245",
+    "three": "0.187.0"
   },
   "devDependencies": {
     "@rollup/rollup-darwin-arm64": "^4.68.3",
@@ -37,6 +38,7 @@
     "@types/node": "^22.20.5",
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
+    "@types/three": "0.187.0",
     "@vitejs/plugin-react": "^4.7.0",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",

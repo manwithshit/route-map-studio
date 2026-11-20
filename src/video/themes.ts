@@ -40,8 +40,7 @@ export type Theme = {
 	lightIntensity?: number; // 楼块光照强度，默认 0.32
 	roadCase?: string; // 主干道描边色：有它就画描边，不画道路光晕
 	traceCase?: string; // 轨迹描边色，也用作未走路段的虚线色
-	headIcon?: 'car'; // 车头换成 Q 版小车，车头朝向跟着路走
-	car?: {body: string; roof: string}; // 小车配色，描边用 traceCase
+	headIcon?: 'car'; // 车头换成 3D 玩具车（Tripo 生成的模型），朝向跟着路走
 	tiltShift?: boolean; // 画面上下两端虚化，像移轴拍的微缩模型
 	buildingScale?: number; // 楼高倍率，默认 1
 	terrain?: {
@@ -275,7 +274,6 @@ export const THEMES: Record<string, Theme> = {
 		roadCase: '#c7bfae',
 		traceCase: '#ffffff',
 		headIcon: 'car',
-		car: {body: '#ffd23f', roof: '#ffe58a'},
 		tiltShift: true,
 	},
 	vintage: {
@@ -394,7 +392,6 @@ export const THEMES: Record<string, Theme> = {
 		roadCase: '#c9a77a',
 		traceCase: '#5a3a22',
 		headIcon: 'car',
-		car: {body: '#4cb8e6', roof: '#8fd4f2'},
 		buildingScale: 0.45,
 	},
 	terrain: {
