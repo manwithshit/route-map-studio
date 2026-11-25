@@ -1,5 +1,5 @@
 import {useEffect, useMemo, useRef, useState} from 'react';
-import {AbsoluteFill, continueRender, delayRender, getRemotionEnvironment, useCurrentFrame} from 'remotion';
+import {AbsoluteFill, cancelRender, continueRender, delayRender, getRemotionEnvironment, useCurrentFrame} from 'remotion';
 import {Map as MLMap, type GeoJSONSource} from 'maplibre-gl';
 import 'maplibre-gl/dist/maplibre-gl.css';
 import {FPS, outFps, type VideoConfig} from './config';
@@ -7,15 +7,15 @@ import {Hud, SceneContext} from './Hud';
 import {CAR_LAYER_ID, createCarLayer, loadCarModel, type CarLayer} from './carLayer';
 import {buildStyle} from './mapStyle';
 import {getTheme} from './themes';
-import {getTimeline, type FrameState, type Timeline} from './timeline';
+import {getTimeline, routeGeometryHash, type FrameState, type Timeline} from './timeline';
 import type {Theme} from './themes';
 
 const applyFrame = (map: MLMap, s: FrameState, elevation?: number, car?: CarLayer | null) => {
 	car?.setPose(s.head, s.heading);
-	(map.getSource('trace') as GeoJSONSource).setData(s.trace);
-	(map.getSource('flow') as GeoJSONSource).setData(s.flow);
-	(map.getSource('head') as GeoJSONSource).setData(s.headFc);
-	(map.getSource('stops') as GeoJSONSource).setData(s.stopsFc);
+	(map.getSource('trace') as GeoJSONSource | undefined)?.setData(s.trace);
+	(map.getSource('flow') as GeoJSONSource | undefined)?.setData(s.flow);
+	(map.getSource('head') as GeoJSONSource | undefined)?.setData(s.headFc);
+	(map.getSource('stops') as GeoJSONSource | undefined)?.setData(s.stopsFc);
 	// jumpTo 无补间：相机严格落在本帧计算值上
 	map.jumpTo(elevation === undefined ? s.camera : {...s.camera, elevation});
 };
@@ -75,65 +75,115 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 
 	useEffect(() => {
 		if (!containerRef.current) return;
+		let cancelled = false;
 		const s0 = state;
+		const initTheme = theme;
+		const isRendering = getRemotionEnvironment().isRendering;
 		const instance = new MLMap({
 			container: containerRef.current,
-			style: buildStyle(theme, tl),
+			style: buildStyle(initTheme, tl),
 			...s0.camera,
 			interactive: false,
 			attributionControl: false,
 			fadeDuration: 0,
 			maxPitch: 70,
-			centerClampedToGround: !theme.terrain,
+			centerClampedToGround: !initTheme.terrain,
 			// 渲染时 2× 超采样，细路网在运动中不闪烁；工作台预览用 1× 保证流畅
-			pixelRatio: getRemotionEnvironment().isRendering ? 2 : 1,
+			pixelRatio: isRendering ? 2 : 1,
 			refreshExpiredTiles: false,
 			localIdeographFontFamily: '"PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif',
 			canvasContextAttributes: {preserveDrawingBuffer: true, antialias: true},
 		});
+		let settled = false;
+		const finishLoad = () => {
+			if (cancelled || settled) return;
+			settled = true;
+			setMap(instance);
+			continueRender(loadHandle);
+		};
+		const onSecondIdle = () => finishLoad();
+		const onFirstIdle = () => {
+			if (cancelled) return;
+			const curTheme = themeRef.current;
+			if (!curTheme.terrain) {
+				finishLoad();
+				return;
+			}
+			fixElevation(instance, curTheme);
+			instance.once('idle', onSecondIdle);
+		};
 		instance.on('load', async () => {
-			// 渲染时必须等模型加载完、加进地图，再放行第一帧
-			if (theme.headIcon) syncCar(instance, theme, await loadCarModel());
-			applyFrame(instance, s0, undefined, carRef.current);
-			instance.once('idle', () => {
-				const ready = () => {
-					setMap(instance);
-					continueRender(loadHandle);
-				};
-				if (!theme.terrain) return ready();
-				fixElevation(instance, theme);
-				instance.once('idle', ready);
-			});
+			try {
+				// 渲染时必须等模型加载完、加进地图，再放行第一帧
+				if (initTheme.headIcon) {
+					const model = await loadCarModel();
+					if (cancelled) return;
+					if (themeRef.current.headIcon) syncCar(instance, themeRef.current, model);
+				}
+				if (cancelled) return;
+				applyFrame(instance, stateRef.current, undefined, carRef.current);
+				instance.once('idle', onFirstIdle);
+			} catch (err) {
+				if (cancelled) return;
+				if (isRendering) {
+					cancelRender(err instanceof Error ? err : new Error(`3D 小车模型加载失败：${String(err)}`));
+				} else {
+					console.error('3D car model load failed:', err);
+					applyFrame(instance, stateRef.current, undefined, null);
+					finishLoad();
+				}
+			}
 		});
 		return () => {
+			cancelled = true;
+			instance.off('idle', onFirstIdle);
+			instance.off('idle', onSecondIdle);
+			if (!settled) continueRender(loadHandle);
 			// 渲染时不调用 remove()：会干扰 Remotion 的渲染生命周期。
-			// 工作台预览里换主题会重建地图，必须释放旧的 WebGL 上下文。
-			if (!getRemotionEnvironment().isRendering) instance.remove();
+			// 工作台预览里换画幅/路线会重建地图，必须释放旧的 WebGL 上下文。
+			if (!isRendering) instance.remove();
 		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [loadHandle]);
 
-	// 换主题：在同一个地图上换样式。瓦片、WebGL 上下文都留着，只有新画法的着色器要编译，
-	// 比整个重建快得多（重建时每次都要重新建上下文、重新下载瓦片，预览会卡一秒左右）。
+	// 换主题：在同一个地图上换样式，使用版本号与清理函数隔离快速切换时的旧异步回调。
 	const [restyling, setRestyling] = useState(false);
 	const shownTheme = useRef(theme);
+	const styleSeq = useRef(0);
 	useEffect(() => {
 		if (!map || shownTheme.current === theme) return;
 		shownTheme.current = theme;
+		const seq = ++styleSeq.current;
+		let active = true;
+
 		map.setCenterClampedToGround(!theme.terrain);
 		elevation.current = undefined;
 		map.setStyle(buildStyle(theme, tl), {diff: true});
 		syncCar(map, theme);
-		if (theme.headIcon) loadCarModel().then((model) => {
-			syncCar(map, theme, model);
-			applyFrame(map, stateRef.current, elevation.current, carRef.current);
-		});
+		if (theme.headIcon) {
+			loadCarModel()
+				.then((model) => {
+					if (!active || seq !== styleSeq.current || themeRef.current !== theme) return;
+					syncCar(map, theme, model);
+					applyFrame(map, stateRef.current, elevation.current, carRef.current);
+				})
+				.catch((err) => {
+					if (!active || seq !== styleSeq.current) return;
+					console.error('3D car model load failed:', err);
+				});
+		}
 		applyFrame(map, stateRef.current, undefined, carRef.current);
 		setRestyling(Boolean(theme.terrain));
-		map.once('idle', () => {
+		const onIdle = () => {
+			if (!active || seq !== styleSeq.current) return;
 			fixElevation(map, theme);
 			setRestyling(false);
-		});
+		};
+		map.once('idle', onIdle);
+		return () => {
+			active = false;
+			map.off('idle', onIdle);
+		};
 		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [map, theme]);
 
@@ -145,8 +195,21 @@ const MapLayer: React.FC<{theme: Theme; tl: Timeline; state: FrameState; frame: 
 		// delayRender 句柄和 idle 监听会以 60 个/秒堆积，几分钟后一次性触发，整页卡死数十秒。
 		if (!getRemotionEnvironment().isRendering) return;
 		const handle = delayRender(`Map frame ${frame}`, {timeoutInMilliseconds: 60000});
-		map.once('idle', () => continueRender(handle));
+		let done = false;
+		const onIdle = () => {
+			if (done) return;
+			done = true;
+			continueRender(handle);
+		};
+		map.once('idle', onIdle);
 		map.triggerRepaint();
+		return () => {
+			map.off('idle', onIdle);
+			if (!done) {
+				done = true;
+				continueRender(handle);
+			}
+		};
 	}, [map, frame, state]);
 
 	return (
@@ -175,8 +238,8 @@ export const TravelMap: React.FC<VideoConfig> = (cfg) => {
 	const tl = useMemo(() => ({...cached, cfg: {...cached.cfg, texts: cfg.texts, show: cfg.show}}), [cached, cfg.texts, cfg.show]);
 	const state = useMemo(() => cached.getFrameState(frame), [cached, frame]);
 	const ctx = useMemo(() => ({theme, tl}), [theme, tl]);
-	// 只有画幅、路线变化才重建地图；换主题在原地图上换样式，拖时长、镜头滑块都不重建
-	const mapKey = `${cfg.aspect}|${cfg.route.distanceMeters}|${cfg.route.coordinates.length}`;
+	// 只有画幅、路线完整几何变化才重建地图；换主题在原地图上换样式，拖时长、镜头滑块都不重建
+	const mapKey = `${cfg.aspect}|${cfg.route.distanceMeters}|${routeGeometryHash(cfg.route.coordinates)}`;
 
 	return (
 		<SceneContext.Provider value={ctx}>

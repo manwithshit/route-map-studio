@@ -65,6 +65,61 @@ const introEase = Easing.bezier(0.5, 0, 0.15, 1);
 const pullEase = Easing.inOut(Easing.cubic);
 const burstEase = Easing.out(Easing.cubic);
 
+// 完整路线几何的稳定哈希，避免只改中间点时命中旧 Timeline 缓存或漏重建地图
+export const routeGeometryHash = (coords: number[][]): string => {
+	let h1 = 0x811c9dc5 >>> 0;
+	let h2 = 0x9e3779b1 >>> 0;
+	for (let i = 0; i < coords.length; i++) {
+		const a = Math.round(coords[i][0] * 1e6) | 0;
+		const b = Math.round(coords[i][1] * 1e6) | 0;
+		h1 = Math.imul(h1 ^ a, 0x01000193) >>> 0;
+		h1 = Math.imul(h1 ^ b, 0x01000193) >>> 0;
+		h2 = Math.imul(h2 ^ (a + i), 0x85ebca6b) >>> 0;
+		h2 = Math.imul(h2 ^ (b - i), 0xc2b2ae35) >>> 0;
+	}
+	return `${coords.length}:${h1.toString(36)}-${h2.toString(36)}`;
+};
+
+// 按行进顺序在路线区间 [fromKm, toKm] 内寻找距离 pt 最近的投影点，
+// 解决闭合环线/重复经过同一路段时终点被吸附回 km=0 的问题。
+const projectInRange = (coords: LngLat[], cumKm: number[], pt: LngLat, cosLat: number, fromKm: number, toKm: number) => {
+	const M = 111.32; // km per degree lat
+	const toXY = (p: LngLat): [number, number] => [p[0] * M * cosLat, p[1] * M];
+	const [px, py] = toXY(pt);
+	let bestDist = Infinity;
+	let bestKm = fromKm;
+	let bestPt: LngLat = coords[0];
+
+	for (let i = 0; i < coords.length - 1; i++) {
+		const segStartKm = cumKm[i];
+		const segEndKm = cumKm[i + 1];
+		if (segEndKm < fromKm - 1e-6 || segStartKm > toKm + 1e-6) continue;
+		const segLenKm = segEndKm - segStartKm;
+		const a = coords[i];
+		const b = coords[i + 1];
+		const [ax, ay] = toXY(a);
+		const [bx, by] = toXY(b);
+		const dx = bx - ax;
+		const dy = by - ay;
+		const d2 = dx * dx + dy * dy;
+
+		const uMin = segLenKm > 1e-9 ? clamp01((fromKm - segStartKm) / segLenKm) : 0;
+		const uMax = segLenKm > 1e-9 ? clamp01((toKm - segStartKm) / segLenKm) : 1;
+		let u = d2 > 1e-12 ? ((px - ax) * dx + (py - ay) * dy) / d2 : 0;
+		u = Math.min(uMax, Math.max(uMin, u));
+
+		const cx = ax + dx * u;
+		const cy = ay + dy * u;
+		const dist = Math.hypot(px - cx, py - cy);
+		if (dist < bestDist) {
+			bestDist = dist;
+			bestKm = segStartKm + segLenKm * u;
+			bestPt = [a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u];
+		}
+	}
+	return {km: bestKm, lngLat: bestPt, distKm: bestDist};
+};
+
 // 帧域高斯平滑（按里程平滑不够：巡航约 2km/s，路口在 0.3s 内就过完）
 export const gaussSmooth = (xs: number[], sigma: number) => {
 	const r = Math.ceil(sigma * 3);
@@ -133,8 +188,13 @@ const buildTimeline = (cfg: VideoConfig) => {
 	const L: Layout = getLayout(cfg.aspect);
 	const coords = cfg.route.coordinates as LngLat[];
 	const route = turf.lineString(coords);
-	const ROUTE_KM = turf.length(route);
+	const cumKm: number[] = [0];
+	for (let i = 1; i < coords.length; i++) {
+		cumKm.push(cumKm[i - 1] + turf.distance(coords[i - 1], coords[i]));
+	}
+	const ROUTE_KM = cumKm[cumKm.length - 1] || turf.length(route);
 	const START = coords[0];
+	const END = coords[coords.length - 1];
 	const meanLat = coords.reduce((s, c) => s + c[1], 0) / coords.length;
 	const COS_LAT = Math.cos((meanLat * Math.PI) / 180);
 	const DURATION_FRAMES = Math.round(FPS * cfg.durationS);
@@ -248,9 +308,31 @@ const buildTimeline = (cfg: VideoConfig) => {
 		return {fitCamera: {center, zoom}, spanM: Math.hypot(u1 - u0, r1 - r0)};
 	})();
 
-	const snapped = cfg.landmarks.map((s) => {
-		const p = turf.nearestPointOnLine(route, turf.point(s.lngLat));
-		return {s, km: p.properties.location ?? 0, lngLat: p.geometry.coordinates as LngLat};
+	// 按行进顺序将地标投影到路线：起终点直接锚定在 0 / ROUTE_KM（兼容重复经过起终点的 8 字形环线），
+	// 途经点从上一个地标的里程向前搜索，保持行进顺序不回跳。
+	const nMarks = cfg.landmarks.length;
+	let cursorKm = 0;
+	const snapped = cfg.landmarks.map((s, i) => {
+		const distToStart = turf.distance(s.lngLat, START);
+		const distToEnd = turf.distance(s.lngLat, END);
+		const isStart = s.role === 'start' || (!s.role && i === 0 && distToStart < 0.25);
+		const isEnd = s.role === 'end' || (!s.role && i === nMarks - 1 && nMarks > 1 && distToEnd < 0.25);
+
+		if (isStart && distToStart < 0.25) {
+			return {s, km: 0, lngLat: START};
+		}
+		if (isEnd && distToEnd < 0.25) {
+			cursorKm = ROUTE_KM;
+			return {s, km: ROUTE_KM, lngLat: END};
+		}
+
+		let hit = projectInRange(coords, cumKm, s.lngLat, COS_LAT, cursorKm, ROUTE_KM);
+		if (hit.distKm > 0.5 && cursorKm > 0) {
+			const globalHit = projectInRange(coords, cumKm, s.lngLat, COS_LAT, 0, ROUTE_KM);
+			if (globalHit.distKm + 0.2 < hit.distKm) hit = globalHit;
+		}
+		cursorKm = Math.max(cursorKm, hit.km);
+		return {s, km: hit.km, lngLat: hit.lngLat};
 	});
 	snapped.sort((a, b) => a.km - b.km);
 	const anchors = autoAnchors(
@@ -378,16 +460,14 @@ const buildTimeline = (cfg: VideoConfig) => {
 	};
 };
 
-// 按配置内容缓存，避免 Player 每帧重建
+// 按完整几何哈希和关键配置缓存，避免 Player 每帧重建同时防止中间点改动误命中旧缓存
 const cache = new Map<string, Timeline>();
 export const getTimeline = (cfg: VideoConfig): Timeline => {
 	const key = JSON.stringify([
 		cfg.aspect,
 		cfg.durationS,
 		cfg.dynamics,
-		cfg.route.coordinates.length,
-		cfg.route.coordinates[0],
-		cfg.route.coordinates[cfg.route.coordinates.length - 1],
+		routeGeometryHash(cfg.route.coordinates),
 		cfg.route.distanceMeters,
 		cfg.landmarks,
 		cfg.show.flow,

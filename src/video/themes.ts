@@ -487,7 +487,7 @@ export const THEMES: Record<string, Theme> = {
 };
 
 export const DEFAULT_THEME = 'cyan';
-export const getTheme = (id?: string): Theme => THEMES[id ?? DEFAULT_THEME] ?? THEMES[DEFAULT_THEME];
+export const getTheme = (id?: string): Theme => (id && Object.hasOwn(THEMES, id) ? THEMES[id] : THEMES[DEFAULT_THEME]);
 
 // '#rrggbb' → 'rgba(r,g,b,a)'
 export const alpha = (hex: string, a: number) => {

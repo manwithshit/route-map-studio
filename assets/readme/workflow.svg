@@ -1,0 +1,78 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320" role="img" aria-labelledby="title desc">
+  <title id="title">路线地图工作台工作原理：五步流水线</title>
+  <desc id="desc">从高德搜索地点并转 WGS-84 坐标，经 OSRM 沿真实道路算路，生成逐帧联合平滑时间轴，再由 Remotion 与 MapLibre 3D 渲染并导出本地 MP4。</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#0b242f"/>
+      <stop offset="55%" stop-color="#133d4b"/>
+      <stop offset="100%" stop-color="#1a4e5e"/>
+    </linearGradient>
+    <linearGradient id="routeLine" gradientUnits="userSpaceOnUse" x1="150" y1="98" x2="1050" y2="98">
+      <stop offset="0%" stop-color="#f2d59b"/>
+      <stop offset="55%" stop-color="#f2d59b"/>
+      <stop offset="100%" stop-color="#36e0ff"/>
+    </linearGradient>
+  </defs>
+
+  <rect width="1200" height="320" rx="22" fill="url(#bg)"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', sans-serif">
+    <text x="52" y="54" font-size="22" font-weight="600" fill="#f4f1e6">一份逐帧时间轴，同时驱动 3D 地图、路线轨迹与界面卡片</text>
+    <text x="1148" y="54" text-anchor="end" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="16" fill="#9cc0cb">PIPELINE · LOCAL RENDER</text>
+  </g>
+
+  <line x1="150" y1="98" x2="1050" y2="98" stroke="url(#routeLine)" stroke-width="3" stroke-linecap="round" opacity="0.85"/>
+
+  <g font-family="-apple-system, BlinkMacSystemFont, 'SF Pro Display', 'PingFang SC', sans-serif">
+    <!-- Step 1 -->
+    <g transform="translate(52 122)">
+      <circle cx="98" cy="-24" r="7" fill="#f2d59b"/>
+      <rect width="196" height="156" rx="16" fill="#0b1f27" fill-opacity="0.72" stroke="#2f6677" stroke-width="1.5"/>
+      <text x="20" y="34" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="18" fill="#f2d59b">01</text>
+      <text x="20" y="68" font-size="22" font-weight="600" fill="#f4f1e6">搜索地点</text>
+      <text x="20" y="100" font-size="18" fill="#c6dce3">高德输入提示</text>
+      <text x="20" y="128" font-size="18" fill="#8cb2be">坐标转 WGS-84</text>
+    </g>
+
+    <!-- Step 2 -->
+    <g transform="translate(277 122)">
+      <circle cx="98" cy="-24" r="7" fill="#f2d59b"/>
+      <rect width="196" height="156" rx="16" fill="#0b1f27" fill-opacity="0.72" stroke="#2f6677" stroke-width="1.5"/>
+      <text x="20" y="34" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="18" fill="#f2d59b">02</text>
+      <text x="20" y="68" font-size="22" font-weight="600" fill="#f4f1e6">真实算路</text>
+      <text x="20" y="100" font-size="18" fill="#c6dce3">OSRM 骑行路网</text>
+      <text x="20" y="128" font-size="18" fill="#8cb2be">贴合 OSM 道路</text>
+    </g>
+
+    <!-- Step 3 (Highlight) -->
+    <g transform="translate(502 122)">
+      <circle cx="98" cy="-24" r="9" fill="#f2d59b"/>
+      <circle cx="98" cy="-24" r="16" fill="none" stroke="#f2d59b" stroke-width="2" opacity="0.5"/>
+      <rect width="196" height="156" rx="16" fill="#173e4c" stroke="#f2d59b" stroke-width="2"/>
+      <text x="20" y="34" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="18" fill="#f2d59b">03 · CORE</text>
+      <text x="20" y="68" font-size="22" font-weight="600" fill="#f4f1e6">逐帧时间轴</text>
+      <text x="20" y="100" font-size="18" fill="#eef4f6">镜头与轨迹平滑</text>
+      <text x="20" y="128" font-size="18" fill="#f2d59b">转弯不抖不漂移</text>
+    </g>
+
+    <!-- Step 4 -->
+    <g transform="translate(727 122)">
+      <circle cx="98" cy="-24" r="7" fill="#7ce5ec"/>
+      <rect width="196" height="156" rx="16" fill="#0b1f27" fill-opacity="0.72" stroke="#2f6677" stroke-width="1.5"/>
+      <text x="20" y="34" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="18" fill="#7ce5ec">04</text>
+      <text x="20" y="68" font-size="22" font-weight="600" fill="#f4f1e6">实时预览</text>
+      <text x="20" y="100" font-size="18" fill="#c6dce3">MapLibre 3D 底图</text>
+      <text x="20" y="128" font-size="18" fill="#8cb2be">Three.js 3D 小车</text>
+    </g>
+
+    <!-- Step 5 -->
+    <g transform="translate(952 122)">
+      <circle cx="98" cy="-24" r="7" fill="#36e0ff"/>
+      <rect width="196" height="156" rx="16" fill="#0b1f27" fill-opacity="0.72" stroke="#2f6677" stroke-width="1.5"/>
+      <text x="20" y="34" font-family="ui-monospace, 'SF Mono', Menlo, monospace" font-size="18" fill="#36e0ff">05</text>
+      <text x="20" y="68" font-size="22" font-weight="600" fill="#f4f1e6">本地出片</text>
+      <text x="20" y="100" font-size="18" fill="#c6dce3">Remotion 逐帧编码</text>
+      <text x="20" y="128" font-size="18" fill="#8cb2be">1080p · 30/60fps</text>
+    </g>
+  </g>
+</svg>

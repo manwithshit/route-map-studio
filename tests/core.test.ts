@@ -235,3 +235,133 @@ describe('30fps 输出', async () => {
 		expect(durationFrames({...c, fps: 30})).toBe(255);
 	});
 });
+
+describe('闭合环线与几何缓存（回归测试）', async () => {
+	const {routeGeometryHash} = await import('../src/video/timeline');
+	it('闭合环线的起终点坐标相同时，终点落在总里程与尾段帧，而非 km=0', () => {
+		const start: LngLat = [104.06, 30.66];
+		const p1: LngLat = [104.12, 30.66];
+		const p2: LngLat = [104.12, 30.71];
+		const p3: LngLat = [104.06, 30.71];
+		const loopCfg = {
+			...sampleConfig('chengdu'),
+			route: {coordinates: [start, p1, p2, p3, start], distanceMeters: 20_510, source: 'test'},
+			landmarks: [
+				{name: '起点', en: 'START', lngLat: start},
+				{name: '中点', en: 'MID', lngLat: p2},
+				{name: '回到起点', en: 'END', lngLat: start},
+			],
+		};
+		const tl = getTimeline(loopCfg);
+		expect(tl.STOPS[0].km).toBeLessThan(0.05);
+		expect(tl.STOPS[1].km).toBeGreaterThan(tl.ROUTE_KM * 0.35);
+		expect(tl.STOPS[2].km).toBeGreaterThan(tl.ROUTE_KM * 0.95);
+		expect(tl.STOPS[2].reachFrame).toBeGreaterThan(tl.DURATION_FRAMES * 0.5);
+	});
+
+	it('重复经过起终点的 8 字形环线（A → B → A → C → A），终点精确落到 ROUTE_KM', () => {
+		const a: LngLat = [104.06, 30.66];
+		const b: LngLat = [104.11, 30.66];
+		const c: LngLat = [104.06, 30.71];
+		const figure8 = {
+			...sampleConfig('chengdu'),
+			route: {coordinates: [a, b, a, c, a], distanceMeters: 23_578, source: 'test'},
+			landmarks: [
+				{name: '起点 A', en: 'START', lngLat: a, role: 'start' as const},
+				{name: '终点 A', en: 'END', lngLat: a, role: 'end' as const},
+			],
+		};
+		const tl = getTimeline(figure8);
+		expect(tl.STOPS[0].km).toBe(0);
+		expect(tl.STOPS[1].km).toBeCloseTo(tl.ROUTE_KM, 4);
+		expect(tl.STOPS[1].reachFrame).toBeGreaterThan(tl.DURATION_FRAMES * 0.5);
+	});
+
+	it('仅修改路线中间坐标时，几何签名与 Timeline 缓存都会更新', () => {
+		const base = sampleConfig('chengdu');
+		const coords2 = base.route.coordinates.map((c, i) => (i === Math.floor(base.route.coordinates.length / 2) ? [c[0] + 0.005, c[1] + 0.005] : c));
+		const mod = {...base, route: {...base.route, coordinates: coords2}};
+		expect(routeGeometryHash(base.route.coordinates)).not.toBe(routeGeometryHash(mod.route.coordinates));
+		expect(getTimeline(base)).not.toBe(getTimeline(mod));
+	});
+});
+
+describe('服务端安全与边界校验（回归测试）', async () => {
+	const http = await import('node:http');
+	const path = await import('node:path');
+	const {fileURLToPath} = await import('node:url');
+	const {createApp} = await import('../server/index');
+	const {startRender} = await import('../server/render');
+	const {configFilePath} = await import('../server/store');
+	const {isPathInside, validateVideoConfig} = await import('../server/validate');
+
+	it('Key 配置文件默认存放在项目 Web 根目录之外', () => {
+		const repoRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
+		expect(isPathInside(repoRoot, configFilePath(), true)).toBe(false);
+	});
+
+	it('路径边界判断能拦截前缀绕过（out-escape / out/../out-escape）', () => {
+		const repoRoot = path.resolve(fileURLToPath(new URL('..', import.meta.url)));
+		const outRoot = path.join(repoRoot, 'out');
+		expect(isPathInside(outRoot, path.resolve(repoRoot, 'out/e2e'), true)).toBe(true);
+		expect(isPathInside(outRoot, path.resolve(repoRoot, 'out-escape'), true)).toBe(false);
+		expect(isPathInside(outRoot, path.resolve(repoRoot, 'out/../out-escape'), true)).toBe(false);
+	});
+
+	it('非法 VideoConfig 与原型属性枚举绕过被拒绝且不会永久占住渲染锁', () => {
+		const badAspect = {...sampleConfig('chengdu'), aspect: '../../evil' as Aspect};
+		expect(() => validateVideoConfig(badAspect)).toThrow();
+		expect(() => startRender(badAspect)).toThrow();
+		for (const proto of ['toString', 'constructor', '__proto__']) {
+			expect(() => validateVideoConfig({...sampleConfig('chengdu'), theme: proto}), `theme=${proto}`).toThrow();
+			expect(() => validateVideoConfig({...sampleConfig('chengdu'), aspect: proto as Aspect}), `aspect=${proto}`).toThrow();
+		}
+		const missingTexts = {...sampleConfig('chengdu'), texts: undefined as never};
+		expect(() => startRender(missingTexts)).toThrow(/texts|文案/);
+	});
+
+	it('本地 HTTP 服务拒绝外部 Host、跨源 Origin、敏感路径与生产自定义 outputDir', async () => {
+		const app = await createApp({withUi: false});
+		const server = app.listen(0, '127.0.0.1');
+		await new Promise((r) => server.once('listening', r));
+		const {port} = server.address() as {port: number};
+		const req = (method: string, reqPath: string, headers: Record<string, string>, body?: string) =>
+			new Promise<{status: number; text: string}>((resolve, reject) => {
+				const r = http.request({host: '127.0.0.1', port, path: reqPath, method, headers}, (res) => {
+					let text = '';
+					res.setEncoding('utf8');
+					res.on('data', (c) => (text += c));
+					res.on('end', () => resolve({status: res.statusCode ?? 0, text}));
+				});
+				r.on('error', reject);
+				if (body) r.write(body);
+				r.end();
+			});
+		try {
+			const okCfg = await req('GET', '/api/config', {Host: `127.0.0.1:${port}`});
+			expect(okCfg.status).toBe(200);
+
+			const badHost = await req('GET', '/api/config', {Host: 'evil.example:5317'});
+			expect(badHost.status).toBe(403);
+
+			const badOrigin = await req('GET', '/api/config', {Host: `127.0.0.1:${port}`, Origin: 'https://evil.example'});
+			expect(badOrigin.status).toBe(403);
+
+			const crossSite = await req('GET', '/api/config', {Host: `127.0.0.1:${port}`, 'Sec-Fetch-Site': 'cross-site'});
+			expect(crossSite.status).toBe(403);
+
+			const leakFile = await req('GET', '/config.local.json', {Host: `127.0.0.1:${port}`});
+			expect(leakFile.status).toBe(404);
+
+			const customOut = await req(
+				'POST',
+				'/api/render',
+				{Host: `127.0.0.1:${port}`, 'Content-Type': 'application/json'},
+				JSON.stringify({config: sampleConfig('chengdu'), outputDir: 'out/e2e'}),
+			);
+			expect(customOut.status).toBe(400);
+		} finally {
+			server.close();
+		}
+	});
+});

@@ -33,25 +33,39 @@ export const App: React.FC = () => {
 
 	useEffect(() => saveState(s), [s]);
 
-	// 路线点变化 → 自动重新算路（防抖）
+	// 路线点变化 → 自动重新算路（防抖 + 请求序号与 AbortController，防止切回已算好路线时卡在 loading 或被旧响应覆盖）
 	// 途经点可不填：没选地点的途经点不参与算路，只有起点和终点是必选
 	const wantKey = pointsKey(s.points);
 	const allPicked = Boolean(s.points[0].place && s.points[s.points.length - 1].place);
 	const conflict = cityConflict(s.points);
+	const routeSeq = useRef(0);
 	useEffect(() => {
-		if (!allPicked || conflict || wantKey === s.routeKey) return;
+		const seq = ++routeSeq.current;
+		if (!allPicked || conflict || wantKey === s.routeKey) {
+			setRouting('idle');
+			setRouteError('');
+			return;
+		}
+		const coords = s.points.filter((p) => p.place).map((p) => p.place!.lngLat as LngLat);
+		const ac = new AbortController();
 		setRouting('loading');
+		setRouteError('');
 		const timer = setTimeout(async () => {
 			try {
-				const r = await api.route(s.points.filter((p) => p.place).map((p) => p.place!.lngLat as LngLat));
-				setS((st) => withDefaultTexts({...st, route: r, routeKey: wantKey}));
+				const r = await api.route(coords, ac.signal);
+				if (ac.signal.aborted || seq !== routeSeq.current) return;
+				setS((st) => (pointsKey(st.points) === wantKey ? withDefaultTexts({...st, route: r, routeKey: wantKey}) : st));
 				setRouting('idle');
 			} catch (e) {
+				if (ac.signal.aborted || seq !== routeSeq.current) return;
 				setRouteError(e instanceof Error ? e.message : String(e));
 				setRouting('error');
 			}
 		}, 350);
-		return () => clearTimeout(timer);
+		return () => {
+			clearTimeout(timer);
+			ac.abort();
+		};
 	}, [wantKey, allPicked, conflict, s.routeKey, s.points]);
 
 	// 地标勾选变化时同步默认摘要

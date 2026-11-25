@@ -1,52 +1,247 @@
-// 生成 README 里的封面、风格墙、画幅图。素材全部是真实成片抽帧。
-// 用法：FRAMES=/path/to/frames OUT=/path/to/out node compose.mjs（需要 puppeteer-core 和本机 Chrome）
-// FRAMES 目录里需要：v1_3.5.jpg、v1_8.3.jpg（成都 9:16）、v2_6.5.jpg、v2_9.0.jpg（重庆 9:16）、
-// 3x4_8.2.jpg、16x9_9.0.jpg，以及 6 张主题帧 <主题>-205.jpg。导出 PNG 后用 cwebp -q 84 转 WebP。
-import puppeteer from 'puppeteer-core';
+// 生成 README 的封面（hero）、12 套风格墙（themes）、3 种画幅对比（aspects）中英文 WebP。
+// 素材全部来自真实成片抽帧；仅依赖本机 Google Chrome 和 cwebp，无额外 npm 依赖。
+// 用法：FRAMES=/tmp/rms_frames OUT=/path/to/assets/readme node assets/readme/source/compose.mjs
+import {execFileSync} from 'node:child_process';
 import fs from 'node:fs';
-const FRAMES = process.env.FRAMES ?? '/tmp/rms_assets/new';
-const OUT = process.env.OUT ?? '/tmp/rms_assets/out';
+import os from 'node:os';
+import path from 'node:path';
+
+const FRAMES = process.env.FRAMES ?? '/tmp/rms_frames';
+const OUT = process.env.OUT ?? path.resolve(import.meta.dirname, '..');
+const CHROME = process.env.CHROME ?? '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
 const F = `file://${FRAMES}/`;
-const SANS = '"SF Pro Display","PingFang SC","Helvetica Neue",sans-serif';
-const MONO = '"SF Mono",Menlo,monospace';
-const base = (w,h,body,css='') => `<!doctype html><meta charset=utf-8><style>
-*{box-sizing:border-box;margin:0}html,body{width:${w}px;height:${h}px;overflow:hidden;background:#07080b;color:#eef0f4;font-family:${SANS};-webkit-font-smoothing:antialiased}
-.mono{font-family:${MONO};letter-spacing:.14em;text-transform:uppercase}
-.phone{position:absolute;border-radius:34px;overflow:hidden;box-shadow:0 0 0 2px rgba(255,255,255,.08),0 40px 90px rgba(0,0,0,.7)}
-.phone img{width:100%;height:100%;object-fit:cover;display:block}
-${css}</style><body>${body}</body>`;
-const T = {
- zh:{eyebrow:'Local workbench · Remotion + MapLibre', title:'路线地图工作台', sub:['选几个地点，','渲染一条电影感的城市路线动画。'], stops:['起点','途经','终点'], meta:['6 套风格','3 种画幅','本地渲染 60fps']},
- en:{eyebrow:'Local workbench · Remotion + MapLibre', title:'Route Map Studio', sub:['Pick a few places.','Render a cinematic city route video.'], stops:['Start','Via','End'], meta:['6 themes','3 aspect ratios','Local 60fps render']},
-};
-const hero = (l) => { const t=T[l]; return base(2400,1060, `
-<div style="position:absolute;inset:0;background:radial-gradient(900px 700px at 78% 55%,rgba(232,178,75,.16),transparent 70%),radial-gradient(700px 600px at 98% 20%,rgba(54,224,255,.10),transparent 70%)"></div>
-<div style="position:absolute;left:130px;top:130px;width:1060px">
- <p class="mono" style="font-size:26px;color:#e8b24b">● ${t.eyebrow}</p>
- <h1 style="font-size:${l==='zh'?136:124}px;white-space:nowrap;font-weight:700;letter-spacing:${l==='zh'?'.02em':'-.02em'};margin-top:44px;line-height:1.05">${t.title}</h1>
- <p style="font-size:52px;line-height:1.4;color:#c9ced8;margin-top:40px;font-weight:500">${t.sub[0]}<br><span style="color:#e8b24b">${t.sub[1]}</span></p>
- <svg width="900" height="120" viewBox="0 0 900 120" style="margin-top:70px;display:block">
-  <defs><linearGradient id="g" gradientUnits="userSpaceOnUse" x1="14" y1="0" x2="886" y2="0"><stop offset="0" stop-color="#e8b24b"/><stop offset=".62" stop-color="#e8b24b"/><stop offset=".62" stop-color="#3a3f4b"/></linearGradient></defs>
-  <line x1="14" y1="30" x2="886" y2="30" stroke="url(#g)" stroke-width="5" stroke-linecap="round"/>
-  ${[14,450,886].map((x,i)=>`<circle cx="${x}" cy="30" r="${i===1?12:14}" fill="${i<2?'#e8b24b':'#07080b'}" stroke="${i<2?'#e8b24b':'#6b7383'}" stroke-width="4"/><text x="${x}" y="98" font-size="30" fill="#a0a8b6" text-anchor="${i===0?'start':i===2?'end':'middle'}" font-family='${SANS}'>${t.stops[i]}</text>`).join('')}
-  <circle cx="555" cy="30" r="22" fill="none" stroke="#36e0ff" stroke-width="3" opacity=".6"/><circle cx="555" cy="30" r="9" fill="#36e0ff"/>
- </svg>
- <p class="mono" style="font-size:24px;color:#7d8594;margin-top:56px">${t.meta.join('  ·  ')}</p>
-</div>
-<div class="phone" style="left:1290px;top:130px;width:450px;height:800px;transform:rotate(-4deg)"><img src="${F}v1_3.5.jpg"></div>
-<div class="phone" style="left:1640px;top:84px;width:500px;height:889px;transform:rotate(1deg);z-index:2"><img src="${F}v2_9.0.jpg"></div>
-<div class="phone" style="left:2030px;top:200px;width:420px;height:747px;transform:rotate(5deg)"><img src="${F}v1_8.3.jpg"></div>
-`);};
-const themes = (l) => { const names = l==='zh'?['暗夜青','赛博霓虹','黑金夜景','全息线框','工程蓝图','小红书红']:['Midnight Cyan','Cyber Neon','Black Gold','Hologram','Blueprint','Rednote Red']; const ids=['cyan','neon','gold','hologram','blueprint','xhs']; const acc=['#3fd5ff','#ff3df0','#e8b24b','#36e0ff','#5aa9ff','#ff2d55'];
- return base(2400,860, `<div style="position:absolute;left:60px;right:60px;top:56px;display:grid;grid-template-columns:repeat(6,1fr);gap:28px">${ids.map((id,i)=>`<figure><div class="phone" style="position:relative;width:100%;aspect-ratio:9/16;border-radius:24px"><img src="${F}${id}-205.jpg"></div><figcaption style="margin-top:26px;display:flex;align-items:center;gap:14px;font-size:34px;font-weight:600"><i style="width:18px;height:18px;border-radius:50%;background:${acc[i]};box-shadow:0 0 18px ${acc[i]}"></i>${names[i]}</figcaption></figure>`).join('')}</div>`);};
-const aspects = (l) => { const lab = l==='zh'?['9:16 竖屏','3:4 竖图','16:9 横屏']:['9:16 vertical','3:4 portrait','16:9 landscape'];
- const item=(src,w,h,i,px)=>`<figure style="display:flex;flex-direction:column;align-items:flex-start"><div class="phone" style="position:relative;width:${w}px;height:${h}px;border-radius:22px"><img src="${F}${src}"></div><figcaption style="margin-top:26px;font-size:34px;font-weight:600">${lab[i]} <span class="mono" style="font-size:22px;color:#7d8594;margin-left:10px">${px}</span></figcaption></figure>`;
- return base(2400,1000, `<div style="position:absolute;left:80px;right:80px;bottom:70px;display:flex;align-items:flex-end;justify-content:space-between">${item('v2_6.5.jpg',450,800,0,'1080×1920')}${item('3x4_8.2.jpg',600,800,1,'1080×1440')}${item('16x9_9.0.jpg',1100,619,2,'1920×1080')}</div>`);};
-const b = await puppeteer.launch({executablePath:'/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', headless:'new', args:['--allow-file-access-from-files']});
-const p = await b.newPage();
-for (const [name, fn, w, h] of [['hero',hero,2400,1060],['themes',themes,2400,860],['aspects',aspects,2400,1000]]) for (const l of ['zh','en']) {
- await p.setViewport({width:w,height:h}); const file=`${OUT}/${name}-${l}.html`; fs.writeFileSync(file, fn(l)); await p.goto('file://'+file,{waitUntil:'load'});
- await p.evaluate(()=>Promise.all([...document.images].map(i=>i.decode()))); await new Promise(r=>setTimeout(r,200));
- await p.screenshot({path:`${OUT}/${name}${l==='zh'?'':'-en'}.png`});
+
+const SERIF = '"Songti SC","STSong","Noto Serif SC",Georgia,serif';
+const SANS = '-apple-system,BlinkMacSystemFont,"SF Pro Display","PingFang SC","Helvetica Neue",sans-serif';
+const MONO = 'ui-monospace,"SF Mono",Menlo,monospace';
+
+const base = (w, h, body, css = '') => `<!doctype html>
+<meta charset="utf-8">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{
+  width:${w}px;height:${h}px;overflow:hidden;
+  background:radial-gradient(1250px 920px at 78% 48%,#1d5869 0%,#123b49 48%,#0a232d 100%);
+  color:#f4f1e6;font-family:${SANS};-webkit-font-smoothing:antialiased;
+  position:relative;
 }
-await b.close();
+.serif{font-family:${SERIF}}
+.mono{font-family:${MONO};letter-spacing:.14em;text-transform:uppercase}
+.meta-mono{font-family:${MONO};letter-spacing:.04em}
+.phone{
+  position:absolute;border-radius:36px;overflow:hidden;
+  background:#09151a;
+  border:7px solid #16242a;
+  box-shadow:0 0 0 1.5px rgba(255,255,255,.14),0 36px 80px rgba(3,12,16,.62);
+}
+.phone img{width:100%;height:100%;object-fit:cover;display:block}
+.rings{position:absolute;inset:0;pointer-events:none}
+${css}
+</style>
+<body>${body}</body>`;
+
+const RINGS_SVG = (cx, cy) => `
+<svg class="rings" width="100%" height="100%" viewBox="0 0 2400 1080" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+  <g fill="none" stroke="rgba(220,242,248,0.085)" stroke-width="2">
+    <circle cx="${cx}" cy="${cy}" r="360"/>
+    <circle cx="${cx}" cy="${cy}" r="580"/>
+    <circle cx="${cx}" cy="${cy}" r="820"/>
+    <circle cx="${cx}" cy="${cy}" r="1080"/>
+  </g>
+</svg>`;
+
+const T = {
+	zh: {
+		eyebrow: 'ROUTE MAP STUDIO',
+		title: '路线地图工作台',
+		sub1: '选几个地点，',
+		subHi: '沿着真实马路',
+		sub2: '跑出 3D 路线动画',
+		pills: ['12 套风格', '3D 小车 & 真实地形', '本地一键渲染'],
+		meta: 'mrlazyman · Open source · Remotion + MapLibre · 30 / 60fps',
+		badge: '真实成片抽帧',
+		themes: [
+			{id: 'cyan', label: '暗夜青', group: '夜景霓虹', color: '#00f2fe'},
+			{id: 'neon', label: '赛博霓虹', group: '夜景霓虹', color: '#ff2bd6'},
+			{id: 'hologram', label: '全息线框', group: '夜景霓虹', color: '#39ffb0'},
+			{id: 'blueprint', label: '工程蓝图', group: '夜景霓虹', color: '#ff8a3d'},
+			{id: 'xhs', label: '小红书红', group: '夜景霓虹', color: '#ff2442'},
+			{id: 'day', label: '清新日间', group: '日间清新', color: '#2f7cf6'},
+			{id: 'mini', label: '微缩模型 · 3D小车', group: '日间清新', color: '#ef476f'},
+			{id: 'toon', label: '手账卡通 · 3D小车', group: '纸感手绘', color: '#ff6b4a'},
+			{id: 'vintage', label: '复古纸图', group: '纸感手绘', color: '#c65a4a'},
+			{id: 'ink', label: '钢笔线稿', group: '纸感手绘', color: '#e63b2e'},
+			{id: 'terrain', label: '山野地形 · 海拔', group: '真实地形', color: '#ff5a1f'},
+			{id: 'terrainNight', label: '夜色山城 · 海拔', group: '真实地形', color: '#ffb347'},
+		],
+		aspects: [
+			{src: 'toon.jpg', label: '9:16 竖屏', px: '1080×1920', w: 430, h: 764},
+			{src: 'aspect_3x4.jpg', label: '3:4 竖图', px: '1080×1440', w: 573, h: 764},
+			{src: 'aspect_16x9.jpg', label: '16:9 横屏', px: '1920×1080', w: 1120, h: 630},
+		],
+	},
+	en: {
+		eyebrow: 'ROUTE MAP STUDIO',
+		title: 'Route Map Studio',
+		sub1: 'Pick a few places, render a ',
+		subHi: 'real-road 3D',
+		sub2: ' route video',
+		pills: ['12 Themes', '3D Car & Terrain', 'Local Render'],
+		meta: 'mrlazyman · Open source · Remotion + MapLibre · 30 / 60fps',
+		badge: 'Real render frames',
+		themes: [
+			{id: 'cyan', label: 'Midnight Cyan', group: 'Night Neon', color: '#00f2fe'},
+			{id: 'neon', label: 'Cyber Neon', group: 'Night Neon', color: '#ff2bd6'},
+			{id: 'hologram', label: 'Hologram', group: 'Night Neon', color: '#39ffb0'},
+			{id: 'blueprint', label: 'Blueprint', group: 'Night Neon', color: '#ff8a3d'},
+			{id: 'xhs', label: 'Rednote Red', group: 'Night Neon', color: '#ff2442'},
+			{id: 'day', label: 'Daylight', group: 'Daylight', color: '#2f7cf6'},
+			{id: 'mini', label: 'Miniature · 3D Car', group: 'Daylight', color: '#ef476f'},
+			{id: 'toon', label: 'Storybook · 3D Car', group: 'Paper & Toon', color: '#ff6b4a'},
+			{id: 'vintage', label: 'Vintage Paper', group: 'Paper & Toon', color: '#c65a4a'},
+			{id: 'ink', label: 'Ink Sketch', group: 'Paper & Toon', color: '#e63b2e'},
+			{id: 'terrain', label: 'Terrain Relief', group: 'Real Terrain', color: '#ff5a1f'},
+			{id: 'terrainNight', label: 'Night Hills', group: 'Real Terrain', color: '#ffb347'},
+		],
+		aspects: [
+			{src: 'toon.jpg', label: '9:16 Vertical', px: '1080×1920', w: 430, h: 764},
+			{src: 'aspect_3x4.jpg', label: '3:4 Portrait', px: '1080×1440', w: 573, h: 764},
+			{src: 'aspect_16x9.jpg', label: '16:9 Landscape', px: '1920×1080', w: 1120, h: 630},
+		],
+	},
+};
+
+const hero = (l) => {
+	const t = T[l];
+	const isZh = l === 'zh';
+	return base(
+		2400,
+		1080,
+		`
+${RINGS_SVG(1650, 540)}
+<div style="position:absolute;left:128px;top:156px;width:1050px;z-index:2">
+  <p class="mono" style="font-size:28px;color:#9cc0cb;font-weight:500">${t.eyebrow}</p>
+  <h1 class="serif" style="font-size:${isZh ? 140 : 112}px;font-weight:600;color:#f4f1e6;letter-spacing:${isZh ? '.04em' : '-.01em'};line-height:1.1;margin-top:34px;white-space:nowrap">${t.title}</h1>
+  <p style="font-size:${isZh ? 50 : 44}px;line-height:1.45;color:#eef4f6;margin-top:46px;font-weight:500">
+    ${t.sub1}<span style="color:#f2d59b;font-weight:600">${t.subHi}</span>${isZh ? '<br>' : ''}${t.sub2}
+  </p>
+  <div style="display:flex;gap:22px;margin-top:64px;flex-wrap:nowrap">
+    ${t.pills
+			.map(
+				(p) =>
+					`<span style="padding:18px 34px;border-radius:999px;border:2px solid rgba(226,242,248,.26);background:rgba(9,31,39,.42);font-size:30px;color:#edf3f5;font-weight:500;white-space:nowrap">${p}</span>`,
+			)
+			.join('')}
+  </div>
+  <p class="meta-mono" style="font-size:24px;color:#8cb2be;margin-top:78px">${t.meta}</p>
+</div>
+
+<div class="phone" style="left:1245px;top:145px;width:434px;height:772px;transform:rotate(-4deg);z-index:1"><img src="${F}toon.jpg"></div>
+<div class="phone" style="left:1568px;top:88px;width:472px;height:839px;transform:rotate(0.5deg);z-index:3"><img src="${F}terrainNight.jpg"></div>
+<div class="phone" style="left:1926px;top:172px;width:406px;height:722px;transform:rotate(4deg);z-index:2"><img src="${F}mini.jpg"></div>
+
+<div style="position:absolute;right:76px;bottom:52px;z-index:5;background:#f2ebd6;color:#142f38;font-size:28px;font-weight:700;padding:16px 34px;border-radius:999px;box-shadow:0 12px 30px rgba(4,16,22,.42)">${t.badge}</div>
+`,
+	);
+};
+
+const themes = (l) => {
+	const t = T[l];
+	const header = l === 'zh' ? '两条示例路线展示 12 套不同画法' : '12 distinct styles across two sample routes';
+	const sub =
+		l === 'zh'
+			? '成都路线 10 套 · 重庆真实地形 2 套（均为真实成片抽帧）'
+			: '10 Chengdu route themes · 2 Chongqing terrain themes (real frames)';
+	return base(
+		2400,
+		1710,
+		`
+<div style="position:absolute;left:76px;right:76px;top:52px;display:flex;align-items:baseline;justify-content:space-between">
+  <h2 class="serif" style="font-size:58px;font-weight:600;color:#f4f1e6;letter-spacing:.02em">${header}</h2>
+  <p style="font-size:24px;color:#9cc0cb">${sub}</p>
+</div>
+<div style="position:absolute;left:76px;right:76px;top:156px;display:grid;grid-template-columns:repeat(6,1fr);gap:42px 26px">
+  ${t.themes
+		.map(
+			(item) => `
+    <figure style="display:flex;flex-direction:column">
+      <div style="position:relative;width:100%;aspect-ratio:9/16;border-radius:22px;overflow:hidden;border:3px solid rgba(255,255,255,.14);box-shadow:0 18px 40px rgba(3,12,16,.48)">
+        <img src="${F}${item.id}.jpg" style="width:100%;height:100%;object-fit:cover;display:block">
+      </div>
+      <figcaption style="margin-top:16px;display:flex;align-items:center;gap:10px;font-size:26px;font-weight:600;color:#eef4f6;white-space:nowrap">
+        <i style="width:14px;height:14px;border-radius:50%;flex:none;background:${item.color};box-shadow:0 0 12px ${item.color}"></i>
+        <span>${item.label}</span>
+      </figcaption>
+      <span style="margin-top:5px;margin-left:24px;font-size:20px;color:#8cb2be">${item.group}</span>
+    </figure>`,
+		)
+		.join('')}
+</div>
+`,
+	);
+};
+
+const aspects = (l) => {
+	const t = T[l];
+	const header = l === 'zh' ? '3 种画幅直接切换，同一套画面实时重排' : 'Three aspect ratios, reflowed live from one timeline';
+	return base(
+		2400,
+		1040,
+		`
+<div style="position:absolute;left:84px;right:84px;top:48px;display:flex;align-items:baseline;justify-content:space-between">
+  <h2 class="serif" style="font-size:54px;font-weight:600;color:#f4f1e6">${header}</h2>
+  <p class="mono" style="font-size:22px;color:#8cb2be">1080P · 30 / 60FPS · MP4</p>
+</div>
+<div style="position:absolute;left:84px;right:84px;bottom:58px;display:flex;align-items:flex-end;justify-content:space-between">
+  ${t.aspects
+		.map(
+			(a) => `
+    <figure style="display:flex;flex-direction:column;align-items:flex-start">
+      <div style="width:${a.w}px;height:${a.h}px;border-radius:24px;overflow:hidden;border:4px solid rgba(255,255,255,.15);box-shadow:0 26px 60px rgba(3,12,16,.55)">
+        <img src="${F}${a.src}" style="width:100%;height:100%;object-fit:cover;display:block">
+      </div>
+      <figcaption style="margin-top:24px;font-size:32px;font-weight:600;color:#f4f1e6">
+        ${a.label} <span class="mono" style="font-size:22px;color:#9cc0cb;margin-left:12px">${a.px}</span>
+      </figcaption>
+    </figure>`,
+		)
+		.join('')}
+</div>
+`,
+	);
+};
+
+fs.mkdirSync(OUT, {recursive: true});
+const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'rms-readme-'));
+
+for (const [name, fn, w, h] of [
+	['hero', hero, 2400, 1080],
+	['themes', themes, 2400, 1710],
+	['aspects', aspects, 2400, 1040],
+]) {
+	for (const l of ['zh', 'en']) {
+		const slug = `${name}${l === 'zh' ? '' : '-en'}`;
+		const htmlPath = path.join(tmp, `${slug}.html`);
+		const pngPath = path.join(tmp, `${slug}.png`);
+		const webpPath = path.join(OUT, `${slug}.webp`);
+		fs.writeFileSync(htmlPath, fn(l));
+		execFileSync(
+			CHROME,
+			[
+				'--headless=new',
+				'--disable-gpu',
+				'--hide-scrollbars',
+				'--force-device-scale-factor=1',
+				`--window-size=${w},${h}`,
+				`--screenshot=${pngPath}`,
+				`file://${htmlPath}`,
+			],
+			{stdio: 'pipe'},
+		);
+		execFileSync('cwebp', ['-quiet', '-q', '86', pngPath, '-o', webpPath]);
+		const kb = (fs.statSync(webpPath).size / 1024).toFixed(0);
+		console.log(`✓ ${slug}.webp (${w}x${h}, ${kb} KB)`);
+	}
+}
+
+fs.rmSync(tmp, {recursive: true, force: true});

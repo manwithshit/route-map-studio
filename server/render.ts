@@ -6,7 +6,8 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {bundle} from '@remotion/bundler';
 import {renderMedia, selectComposition} from '@remotion/renderer';
-import type {VideoConfig} from '../src/video/config';
+import {ASPECTS, type VideoConfig} from '../src/video/config';
+import {validateVideoConfig} from './validate';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
 export const OUTPUT_DIR = path.join(os.homedir(), 'Desktop', '路线视频');
@@ -36,24 +37,29 @@ const jobs = new Map<string, Job>();
 let running: Job | null = null;
 
 const safeName = (s: string) => s.replace(/[\\/:*?"<>|\s，,。]+/g, '').slice(0, 24) || '路线';
+const ASPECT_TAG: Record<keyof typeof ASPECTS, string> = {'9:16': '9x16', '3:4': '3x4', '16:9': '16x9'};
 const stamp = () => {
 	const d = new Date();
 	const p = (n: number) => String(n).padStart(2, '0');
 	return `${p(d.getMonth() + 1)}${p(d.getDate())}-${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 };
 
-export const startRender = (config: VideoConfig, opts: {scale?: number; outputDir?: string} = {}): Job => {
+export const startRender = (rawConfig: VideoConfig, opts: {scale?: number; outputDir?: string} = {}): Job => {
+	// 先做全部同步校验与目录准备，避免同步异常导致渲染锁永久占住
+	const config = validateVideoConfig(rawConfig);
 	if (running && (running.status === 'bundling' || running.status === 'rendering')) {
 		throw new Error('已有视频在渲染，完成后再开始下一个。');
 	}
+	const dir = opts.outputDir ?? OUTPUT_DIR;
+	mkdirSync(dir, {recursive: true});
+
+	const fpsTag = config.fps === 30 ? '_30fps' : '';
+	const aspectTag = ASPECT_TAG[config.aspect];
+	const output = path.join(dir, `${safeName(config.texts.title1 + config.texts.title2)}_${aspectTag}${fpsTag}_${stamp()}.mp4`);
 	const id = Math.random().toString(36).slice(2, 10);
 	const job: Job = {id, status: 'bundling', progress: 0, startedAt: Date.now()};
 	jobs.set(id, job);
 	running = job;
-	const dir = opts.outputDir ?? OUTPUT_DIR;
-	mkdirSync(dir, {recursive: true});
-	const fpsTag = config.fps === 30 ? '_30fps' : '';
-	const output = path.join(dir, `${safeName(config.texts.title1 + config.texts.title2)}_${config.aspect.replace(':', 'x')}${fpsTag}_${stamp()}.mp4`);
 
 	(async () => {
 		try {
@@ -83,6 +89,8 @@ export const startRender = (config: VideoConfig, opts: {scale?: number; outputDi
 		} catch (e) {
 			job.status = 'error';
 			job.error = e instanceof Error ? e.message : String(e);
+		} finally {
+			if (running === job) running = null;
 		}
 	})();
 	return job;

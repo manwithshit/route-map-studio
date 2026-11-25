@@ -9,6 +9,7 @@ export type Landmark = {
 	name: string; // 地标卡与地图上的中文名
 	en: string; // 地标卡英文名
 	lngLat: LngLat;
+	role?: 'start' | 'via' | 'end'; // 可选：区分起终点与途经点，避免重复经过同坐标时终点错位
 };
 
 export type ComponentToggles = {

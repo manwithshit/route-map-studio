@@ -1,8 +1,9 @@
-// 端到端测试：起服务 → Key 校验 → 算路 → 体检 → 渲染短视频 → 检查成片。
-// 用法：pnpm e2e        （有 config.local.json 里的 Key 时会多测一项地点搜索）
+// 端到端测试：起服务 → 安全防线 → Key 校验 → 算路 → 体检 → 渲染短视频 → 检查成片。
+// 用法：pnpm e2e        （需要本机安装 ffprobe；有已保存 Key 时会多测一项地点搜索）
 //      WEBEND_KEY=xxx pnpm e2e   （额外验证“Web端 Key”会给出正确的改法提示）
 import {execFileSync} from 'node:child_process';
 import {existsSync, rmSync} from 'node:fs';
+import http from 'node:http';
 import type {AddressInfo} from 'node:net';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
@@ -20,22 +21,40 @@ const ok = (name: string, cond: boolean, detail = '') => {
 	if (!cond) failed++;
 };
 
-const app = await createApp({withUi: true});
+const app = await createApp({withUi: true, allowCustomOutputDir: true});
 const server = app.listen(0, '127.0.0.1');
 await new Promise((r) => server.once('listening', r));
-const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+const port = (server.address() as AddressInfo).port;
+const base = `http://127.0.0.1:${port}`;
 const post = (url: string, body: unknown) => fetch(base + url, {method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body)});
+const rawReq = (reqPath: string, headers: Record<string, string>) =>
+	new Promise<number>((resolve, reject) => {
+		const req = http.request({host: '127.0.0.1', port, path: reqPath, method: 'GET', headers}, (res) => {
+			res.resume();
+			resolve(res.statusCode ?? 0);
+		});
+		req.on('error', reject);
+		req.end();
+	});
 
 try {
-	// 1. 页面能打开
+	// 1. 页面能打开 & 本地安全防线生效
 	const html = await (await fetch(base + '/')).text();
 	ok('工作台页面可访问', html.includes('路线地图工作台'));
 	const mod = await fetch(base + '/src/app/main.tsx');
 	ok('前端模块可编译', mod.ok);
+	const cfgLeak = await fetch(base + '/config.local.json');
+	ok('禁止通过 HTTP 读取 config.local.json', cfgLeak.status === 404 || cfgLeak.status === 403, `status=${cfgLeak.status}`);
+	const badHost = await rawReq('/api/config', {Host: 'evil.example:5317'});
+	ok('拒绝外部 Host（DNS rebinding 防护）', badHost === 403, `status=${badHost}`);
+	const badOrigin = await rawReq('/api/config', {Host: `127.0.0.1:${port}`, Origin: 'https://evil.example'});
+	ok('拒绝跨源 Origin', badOrigin === 403, `status=${badOrigin}`);
 
-	// 2. Key 校验
+	// 2. Key 校验 & 渲染参数边界校验
 	const bad = await post('/api/key', {key: 'abc'});
 	ok('格式不对的 Key 被拒绝', bad.status === 400);
+	const escapeRender = await post('/api/render', {config: sampleConfig('chengdu'), outputDir: 'out-escape'});
+	ok('渲染目录前缀绕过被拒绝', escapeRender.status === 400, `status=${escapeRender.status}`);
 	if (process.env.WEBEND_KEY) {
 		const r = await post('/api/key', {key: process.env.WEBEND_KEY});
 		const d = await r.json();
@@ -62,12 +81,13 @@ try {
 	const issues = checkRoute({coordinates: route.coordinates, distanceMeters: route.distanceMeters, durationS: 6, landmarks: sample.landmarks});
 	ok('体检无错误', !issues.some((i) => i.level === 'error'), issues.map((i) => i.code).join(',') || '无提示');
 
-	// 5. 渲染：6 秒、半分辨率、全息主题、3:4（覆盖非默认画幅）
+	// 5. 渲染：6 秒、半分辨率、手账卡通 3D 小车、3:4、30fps（同时覆盖非默认画幅、3D 小车与 30fps）
 	const config: VideoConfig = {
 		...sample,
-		theme: 'hologram',
+		theme: 'toon',
 		aspect: '3:4',
 		durationS: 6,
+		fps: 30,
 		route: {coordinates: route.coordinates as LngLat[], distanceMeters: route.distanceMeters, source: route.source},
 	};
 	rmSync(OUT, {recursive: true, force: true});
@@ -80,11 +100,13 @@ try {
 		job = await (await fetch(`${base}/api/render/${job.id}`)).json();
 	}
 	ok('渲染完成', job.status === 'done', job.error ?? `${((Date.now() - t0) / 1000).toFixed(0)} 秒`);
-	if (job.output && existsSync(job.output)) {
+	const hasFile = Boolean(job.output && existsSync(job.output));
+	ok('成片文件已生成', hasFile, job.output ?? '缺少输出路径');
+	if (hasFile) {
 		const probe = execFileSync('ffprobe', ['-v', 'error', '-select_streams', 'v', '-show_entries', 'stream=width,height,r_frame_rate,nb_frames', '-of', 'csv=p=0', job.output]).toString().trim();
 		const [w, h, fps, frames] = probe.split(',');
 		ok('成片尺寸 540×720（3:4 半分辨率）', w === '540' && h === '720', probe);
-		ok('成片 60fps、360 帧', fps === '60/1' && frames === '360');
+		ok('成片 30fps、180 帧', fps === '30/1' && frames === '180', probe);
 	}
 } finally {
 	server.close();

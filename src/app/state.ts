@@ -114,7 +114,9 @@ export const toVideoConfig = (s: WorkbenchState): VideoConfig | null => {
 		dynamics: s.dynamics,
 		fps: s.fps,
 		route: {coordinates: s.route.coordinates, distanceMeters: s.route.distanceMeters, source: s.route.source},
-		landmarks: s.points.filter((p) => p.place && p.landmark).map((p) => ({name: p.name || cleanName(p.place!.name), en: p.en, lngLat: p.place!.lngLat as LngLat})),
+		landmarks: s.points
+			.filter((p) => p.place && p.landmark)
+			.map((p) => ({name: p.name || cleanName(p.place!.name), en: p.en, lngLat: p.place!.lngLat as LngLat, role: p.role})),
 		texts: s.texts,
 		show: s.show,
 	};
@@ -155,7 +157,7 @@ export const sanitize = (s: WorkbenchState): WorkbenchState => {
 	const dropped = points.some((p, i) => p !== s.points[i]);
 	const tooLong = (s.route?.distanceMeters ?? 0) > 80000;
 	// 已经下线的风格（如黑金夜景）换成默认风格，否则风格区一个都不选中
-	const theme = THEMES[s.theme] ? s.theme : DEFAULT_THEME;
+	const theme = Object.hasOwn(THEMES, s.theme) ? s.theme : DEFAULT_THEME;
 	if (!dropped && !tooLong) return theme === s.theme ? s : {...s, theme};
 	return {...s, theme, points, route: null, routeKey: ''};
 };

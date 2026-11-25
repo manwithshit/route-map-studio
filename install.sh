@@ -19,21 +19,45 @@ main() {
 		exit 1
 	}
 
+	normalize_repo() {
+		printf '%s' "$1" | sed -E 's#^git@github\.com:#https://github.com/#; s#\.git$##; s#/$##' | tr '[:upper:]' '[:lower:]'
+	}
+
 	# 1. 环境检查：只在 Apple 芯片 Mac 上验证过（渲染依赖 darwin-arm64 的原生组件）
 	[ "$(uname -s)" = "Darwin" ] || fail "目前只支持 macOS。"
 	[ "$(uname -m)" = "arm64" ] || fail "目前只支持 Apple 芯片（M 系列）的 Mac。"
 	command -v git >/dev/null || fail "没找到 git。先在终端运行 xcode-select --install，装好后再运行这条安装命令。"
 	command -v node >/dev/null || fail "没找到 Node.js。到 https://nodejs.org 下载 22 版（LTS）安装，或运行 brew install node@22，再运行这条安装命令。"
-	NODE_MAJOR="$(node -p 'process.versions.node.split(".")[0]')"
-	[ "$NODE_MAJOR" -ge 20 ] || fail "Node.js 版本是 $(node -v)，需要 20 或更高。到 https://nodejs.org 下载 22 版（LTS）。"
+	NODE_VER="$(node -p 'process.versions.node')"
+	NODE_MAJOR="${NODE_VER%%.*}"
+	NODE_REST="${NODE_VER#*.}"
+	NODE_MINOR="${NODE_REST%%.*}"
+	NODE_OK=0
+	if [ "$NODE_MAJOR" -eq 22 ] && [ "$NODE_MINOR" -ge 12 ]; then
+		NODE_OK=1
+	elif [ "$NODE_MAJOR" -eq 24 ] || [ "$NODE_MAJOR" -ge 26 ]; then
+		NODE_OK=1
+	fi
+	if [ "$NODE_OK" -ne 1 ]; then
+		fail "Node.js 版本是 v$NODE_VER，需要 22.12+（LTS）、24.x 或 26+。到 https://nodejs.org 下载 22 版（LTS）。"
+	fi
 
 	# 没装 pnpm 时用 npx 临时调用，不改动全局环境
 	if command -v pnpm >/dev/null; then PNPM=(pnpm); else PNPM=(npx --yes pnpm@10); fi
 
-	# 2. 下载或更新代码
+	# 2. 下载或更新代码（更新前严格验证仓库身份与分支，绝不误操作无关 Git 目录）
 	if [ -d "$DIR/.git" ]; then
+		EXISTING_REMOTE="$(git -C "$DIR" remote get-url origin 2>/dev/null || true)"
+		if [ "$(normalize_repo "$EXISTING_REMOTE")" != "$(normalize_repo "$REPO")" ]; then
+			fail "$DIR 已有其他 Git 仓库（origin=$EXISTING_REMOTE）。请换目录：ROUTE_MAP_DIR=~/Apps/route-map-studio"
+		fi
+		if [ ! -f "$DIR/package.json" ] || ! grep -q '"name"[[:space:]]*:[[:space:]]*"route-map-studio"' "$DIR/package.json"; then
+			fail "$DIR 不是 route-map-studio 项目目录，已中止更新。"
+		fi
+		CURRENT_BRANCH="$(git -C "$DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || true)"
+		[ "$CURRENT_BRANCH" = "main" ] || fail "$DIR 当前不在 main 分支（$CURRENT_BRANCH）。请先切回 main 或指定新的 ROUTE_MAP_DIR。"
 		say "更新已有安装：$DIR"
-		git -C "$DIR" pull --ff-only || fail "更新失败：$DIR 里有本地改动。先处理改动，或设置 ROUTE_MAP_DIR 装到别的目录。"
+		git -C "$DIR" pull --ff-only origin main || fail "更新失败：$DIR 里有本地改动或分支分叉。先处理改动，或设置 ROUTE_MAP_DIR 装到别的目录。"
 	elif [ -e "$DIR" ]; then
 		fail "$DIR 已存在但不是这个项目。删掉它，或设置 ROUTE_MAP_DIR 装到别的目录。"
 	else
@@ -44,7 +68,7 @@ main() {
 	# 3. 安装依赖（首次约 1–3 分钟）
 	cd "$DIR"
 	say "安装依赖…"
-	"${PNPM[@]}" install
+	"${PNPM[@]}" install --frozen-lockfile
 
 	say "安装完成。以后启动：cd \"$DIR\" && ${PNPM[*]} start"
 	[ -n "${NO_START:-}" ] && exit 0
