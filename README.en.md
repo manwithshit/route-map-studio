@@ -33,7 +33,7 @@ One click switches the entire visual treatment—not just a color swap, but base
 
 | Group | Themes | Visual Character |
 | --- | --- | --- |
-| **Night Neon** | Midnight Cyan · Cyber Neon · Hologram · Blueprint · Rednote Red | Dark 3D city massing with glowing trails for cinematic night routes |
+| **Night Neon** | Midnight Cyan · Cyber Neon · Hologram · Blueprint · Dark Vermilion | Dark 3D city massing with glowing trails for cinematic night routes |
 | **Daylight** | Daylight · Miniature | Clean bright maps; **Miniature** adds tilt-shift blur and a **3D toy car** |
 | **Paper & Toon** | Storybook · Vintage Paper · Ink Sketch | Paper grain and bold road casing; **Storybook** drives a **3D toy car** along turns |
 | **Real Terrain** | Terrain Relief · Night Hills | True elevation relief and hillshading—dramatic in mountain cities like Chongqing |

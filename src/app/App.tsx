@@ -177,7 +177,7 @@ export const App: React.FC = () => {
 						</select>
 					</label>
 					<button type="button" className="btn ghost small" onClick={() => setGate(true)}>
-						高德 Key：{!key ? '读取中…' : key.hasKey ? key.masked : '未填写'}
+						{!key ? '读取中…' : key.hasKey ? key.masked : '地点搜索'}
 					</button>
 				</div>
 			</header>
@@ -224,7 +224,9 @@ export const App: React.FC = () => {
 								<span className="small warn-text">参数改过了：预览已经是新效果，但已保存的视频还是改之前的。要新视频，点「重新渲染」。</span>
 							) : job?.status === 'done' && job.output ? (
 								<span className="done">
-									已保存：{job.output.split('/').slice(-2).join('/')}
+									<span className="done-path" title={job.output}>
+										已保存：{job.output}
+									</span>
 									<button type="button" className="link" onClick={() => api.reveal(job.output!)}>
 										在 Finder 中显示
 									</button>

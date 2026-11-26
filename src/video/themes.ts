@@ -55,7 +55,7 @@ export const THEMES: Record<string, Theme> = {
 	cyan: {
 		id: 'cyan',
 		label: '暗夜青',
-		desc: '当前版本。深蓝黑底、荧光青轨迹，稳妥的科技感。',
+		desc: '深蓝黑底、荧光青轨迹，稳妥的科技感。',
 		group: '夜景霓虹',
 		bg: '#03060c',
 		bgRgb: '3,6,12',
@@ -175,8 +175,8 @@ export const THEMES: Record<string, Theme> = {
 	},
 	xhs: {
 		id: 'xhs',
-		label: '小红书红',
-		desc: '暖黑底、品牌红轨迹，和平台调性一致。',
+		label: '暗夜朱砂',
+		desc: '暖黑底、朱砂亮色轨迹，醒目有张力。',
 		group: '夜景霓虹',
 		bg: '#0a0506',
 		bgRgb: '10,5,6',
@@ -356,8 +356,8 @@ export const THEMES: Record<string, Theme> = {
 	},
 	toon: {
 		id: 'toon',
-		label: '手账卡通',
-		desc: '奶油纸底、粗描边道路、矮胖的彩色楼块，Q 版小车沿路跑，像旅行手账。',
+		label: '绘本卡通',
+		desc: '奶油纸底、粗描边道路、矮胖的彩色楼块，Q 版小车沿路跑，像旅行绘本。',
 		group: '纸感手绘',
 		bg: '#f4e7c8',
 		bgRgb: '244,231,200',
@@ -446,7 +446,7 @@ export const THEMES: Record<string, Theme> = {
 	terrainNight: {
 		id: 'terrainNight',
 		label: '夜色山城',
-		desc: '真实地形加夜景：暗色山体、高楼亮起金光，轨迹发光。山城效果最明显。',
+		desc: '真实地形加夜景：暗色山体、高楼亮起金光，轨迹发光。山城效果尤其明显。',
 		group: '真实地形',
 		bg: '#05070b',
 		bgRgb: '5,7,11',

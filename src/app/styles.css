@@ -858,8 +858,16 @@ input[type='checkbox'] {
 	align-items: center;
 	color: var(--ok);
 	font-size: 13px;
+	min-width: 0;
+}
+.done-path {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.done .link {
+	flex: none;
+	align-self: center;
 	white-space: nowrap;
 }
 

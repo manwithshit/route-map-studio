@@ -43,7 +43,7 @@ export const Preview: React.FC<{aspect: Aspect; durationS: number; config: Video
 				{L.safeZones.length ? (
 					<label className="check">
 						<input id="mask" type="checkbox" checked={mask} onChange={(e) => setMask(e.target.checked)} />
-						显示小红书遮挡区
+						显示竖屏遮挡区
 					</label>
 				) : null}
 			</div>

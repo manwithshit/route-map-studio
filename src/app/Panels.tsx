@@ -1,5 +1,5 @@
 // 左侧四个区：路线 / 风格 / 字段 / 文案
-import {useState} from 'react';
+import {useEffect, useState} from 'react';
 import type {Issue} from '../shared/health';
 import {ASPECTS, DURATION_RANGE, DYNAMICS_DEFAULT, type Aspect, type ComponentToggles, type Texts} from '../video/config';
 import {THEMES} from '../video/themes';
@@ -55,6 +55,10 @@ export const RoutePanel: React.FC<{
 	const [dragging, setDragging] = useState<string | null>(null);
 	const [cityNote, setCityNote] = useState('');
 	const vias = s.points.filter((p) => p.role === 'via');
+
+	useEffect(() => {
+		setCityNote('');
+	}, [s.routeKey]);
 
 	// 改完城市（离开输入框或回车）时，如果已选的点在别的城市，就清掉路线重选。
 	// 不清的话，旧城市的点会把搜索锁在旧城市，新城市的候选全是灰的。
@@ -223,7 +227,7 @@ export const RoutePanel: React.FC<{
 						</div>
 						<button type="button" className="add-via" onClick={addVia}>
 							添加途经点
-							<span>可选，最多 {MAX_VIAS} 个</span>
+							<span>可选，上限 {MAX_VIAS} 个</span>
 						</button>
 					</div>
 				) : null}

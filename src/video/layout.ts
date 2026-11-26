@@ -65,7 +65,7 @@ export const getLayout = (aspect: Aspect): Layout => {
 		fit: {top: cardY + 180, bottom: height - panelY + 72, left: 70, right: 190},
 		safeZones: isTall
 			? [
-					{x: 0, y: 0, w: width, h: 160, label: '小红书顶栏'},
+					{x: 0, y: 0, w: width, h: 160, label: '顶部遮挡区'},
 					{x: 0, y: 1700, w: width, h: 220, label: '标题 / 评论区'},
 					{x: 940, y: 900, w: 140, h: 800, label: '点赞收藏'},
 				]
